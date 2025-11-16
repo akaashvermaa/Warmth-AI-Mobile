@@ -1,0 +1,37 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Android",
+            "cwd": "${workspaceFolder}/mobile",
+            "type": "reactnative",
+            "request": "launch",
+            "platform": "android"
+        },
+        {
+            "name": "Debug iOS",
+            "cwd": "${workspaceFolder}/mobile",
+            "type": "reactnative",
+            "request": "launch",
+            "platform": "ios"
+        },
+        {
+            "name": "Debug Expo (Web)",
+            "cwd": "${workspaceFolder}/mobile",
+            "type": "reactnative",
+            "request": "launch",
+            "platform": "exponent"
+        },
+        {
+            "name": "Start Backend",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/run.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            }
+        }
+    ]
+}
