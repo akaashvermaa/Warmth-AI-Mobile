@@ -12,6 +12,47 @@ from .validation import validate_json_request
 bp = Blueprint('mood', __name__)
 logger = logging.getLogger(__name__)
 
+# === Add missing mood endpoints ===
+@bp.route('/mood', methods=['POST'])
+@require_auth
+def log_mood():
+    """ POST /mood - Logs a mood entry. """
+    try:
+        data, error_response, status_code = validate_json_request()
+        if error_response:
+            return error_response, status_code
+
+        score = data.get('score')
+        if score is None:
+            return jsonify({"error": "Missing score"}), 400
+
+        # For now, return success without actual storage
+        # TODO: Implement actual mood storage in Supabase
+        logger.info(f"Mood logged: {score}")
+
+        return jsonify({"success": True, "message": "Mood logged successfully"}), 200
+
+    except Exception as e:
+        logger.error(f"POST /mood - 500 Internal Server Error: {e}", exc_info=True)
+        return jsonify({"error": "Failed to log mood"}), 500
+
+@bp.route('/mood/history', methods=['GET'])
+@require_auth
+def get_mood_history_endpoint():
+    """ GET /mood/history - Retrieves mood history. """
+    try:
+        # For now, return empty history
+        # TODO: Implement actual mood retrieval from Supabase
+        history = []
+        return jsonify({
+            "entries": history,
+            "advice": "Keep tracking your mood to see patterns and get personalized advice."
+        }), 200
+
+    except Exception as e:
+        logger.error(f"GET /mood/history - 500 Internal Server Error: {e}", exc_info=True)
+        return jsonify({"error": "Failed to retrieve mood history"}), 500
+
 # === THE FIX: Add the full path directly to the route ===
 @bp.route('/mood-history', methods=['GET'])
 @require_auth

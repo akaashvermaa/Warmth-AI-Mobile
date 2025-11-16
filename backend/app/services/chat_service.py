@@ -282,7 +282,26 @@ class ChatService:
         if prefs and prefs.get('listening_mode', False) and len(user_input.strip()) <= 30:
             return self._get_listening_acknowledgement()
 
-        # Get mood context for LLM
+        # 🌟 AUTO-MOOD ANALYSIS - The Living Journal Pipeline
+        # Every user message triggers automatic mood analysis
+        try:
+            mood_result = self._auto_analyze_and_log_mood(user_input)
+            if mood_result:
+                logger.info(f"Auto mood logged: score={mood_result['score']}, topic='{mood_result['topic']}'")
+        except Exception as e:
+            logger.error(f"Auto mood analysis failed: {e}", exc_info=True)
+
+        # 🧠 AUTO-MEMORY EXTRACTION - Enhanced Living Journal Pipeline
+        # Every message has a chance to trigger immediate memory extraction
+        try:
+            if self._should_extract_memories_now(user_input):
+                memory_result = self._enhanced_auto_memory_extraction(user_input)
+                if memory_result:
+                    logger.info(f"Enhanced auto memory extraction completed: {memory_result}")
+        except Exception as e:
+            logger.error(f"Enhanced auto memory extraction failed: {e}", exc_info=True)
+
+        # Get mood context for LLM (now includes the just-logged mood)
         current_mood = self._get_mood_context()
         facts = self._get_memories_for_context(user_input)
 
@@ -481,6 +500,180 @@ Be conservative - only save clear, specific, and important facts."""
         user_id = self.get_current_user_id()
         self.last_user_message_time[user_id] = current_time
         self._schedule_memory_extraction()
+
+    def _should_extract_memories_now(self, user_input: str) -> bool:
+        """
+        Determines if the current message should trigger immediate memory extraction.
+        More aggressive than the existing auto-memorize - looks for rich factual content.
+        """
+        user_input_lower = user_input.lower().strip()
+
+        # Must be substantial content
+        if len(user_input_lower) < 15:
+            return False
+
+        # High-probability memory extraction patterns
+        memory_rich_patterns = [
+            r"i am (\w+)",
+            r"i'm (\w+)",
+            r"my name is (\w+)",
+            r"i work as (?:a |an )?([^,.!?]+)",
+            r"i live (?:in|at) ([^.!?]+)",
+            r"i have (?:a |an )?([^,.!?]+)",
+            r"my (\w+) is ([^.!?]+)",
+            r"i like (?:to )?([^,.!?]+)",
+            r"i don't like (?:to )?([^,.!?]+)",
+            r"i (?:go to|study at) ([^.!?]+)",
+            r"i graduated (?:from )?([^,.!?]+)",
+            r"i was born (?:in|at) ([^.!?]+)",
+            r"i'm from ([^.!?]+)",
+            r"my favorite ([^.!?]+)",
+            r"i'm feeling ([^.!?]+)"
+        ]
+
+        # Check if message contains memory-rich content
+        for pattern in memory_rich_patterns:
+            if re.search(pattern, user_input_lower):
+                return True
+
+        # Check for lists of personal information
+        if any(word in user_input_lower for word in ['family', 'children', 'kids', 'parents', 'siblings']):
+            return True
+
+        # Check for emotional milestones
+        if any(word in user_input_lower for word in ['proud', 'accomplished', 'achieved', 'graduated', 'married', 'divorced']):
+            return True
+
+        return False
+
+    def _enhanced_auto_memory_extraction(self, user_input: str) -> dict:
+        """
+        Enhanced immediate memory extraction using the LLM to understand context.
+        This extracts memories right away when rich content is detected.
+        """
+        try:
+            # Create a focused extraction prompt
+            extraction_prompt = """You are a memory extraction AI. Read the user's message and extract any important, specific facts about them.
+
+For each fact you find, output a JSON object in this exact format:
+{"tool_call": "save_memory", "args": {"key": "CATEGORY", "value": "SPECIFIC_DETAIL"}}
+
+Examples of what to extract:
+- Identity: "I am a doctor" → {"key": "Profession", "value": "doctor"}
+- Relationships: "My daughter Emma just turned 5" → {"key": "Family", "value": "has daughter Emma who is 5 years old"}
+- Preferences: "I love hiking on weekends" → {"key": "Hobbies", "value": "enjoys hiking on weekends"}
+- Life events: "I just graduated from college" → {"key": "Education", "value": "recently graduated from college"}
+- Location: "I live in Chicago" → {"key": "Location", "value": "lives in Chicago"}
+
+Only extract clear, specific facts. Be conservative. If no clear facts are found, don't extract anything.
+
+User message: """ + user_input
+
+            messages = [
+                {"role": "system", "content": extraction_prompt},
+                {"role": "user", "content": user_input}
+            ]
+
+            # Get LLM response
+            response = self.llm_service.chat(messages)
+            llm_reply = response.get('message', {}).get('content', '')
+
+            if not llm_reply:
+                return {"status": "no_response"}
+
+            # Process the extraction
+            memories_saved = []
+            if llm_reply.strip().startswith('{') and llm_reply.strip().endswith('}'):
+                try:
+                    parsed = json.loads(llm_reply)
+                    if isinstance(parsed, dict) and parsed.get('tool_call') == 'save_memory':
+                        args = parsed.get('args', {})
+                        key = args.get('key', '').strip()
+                        value = args.get('value', '').strip()
+                        if key and value:
+                            # Check if we already know this
+                            existing_memories = self._get_all_memories()
+                            is_duplicate = any(
+                                key.lower() in mem['key'].lower() and
+                                value.lower() in mem['value'].lower()
+                                for mem in existing_memories
+                            )
+
+                            if not is_duplicate:
+                                self._save_memory_tool(key, value)
+                                memories_saved.append({"key": key, "value": value})
+                                logger.info(f"Enhanced auto-saved memory: {key} = {value}")
+                except json.JSONDecodeError:
+                    pass  # Fall through, no valid JSON found
+
+            return {
+                "status": "completed",
+                "memories_saved": len(memories_saved),
+                "memories": memories_saved
+            }
+
+        except Exception as e:
+            logger.error(f"Enhanced auto memory extraction error: {e}")
+            return {"status": "error", "error": str(e)}
+
+    def _auto_analyze_and_log_mood(self, user_input: str) -> dict:
+        """
+        Automatically analyzes user input for mood and logs it to Supabase.
+        This is the core of the Living Journal - every message triggers mood analysis.
+        """
+        try:
+            # Use the existing MoodAnalyzer to analyze the user input
+            mood_analysis = self.analyzer_service.analyze_mood(user_input)
+
+            if not mood_analysis or 'mood_score' not in mood_analysis:
+                logger.warning("Mood analysis returned invalid result")
+                return None
+
+            # Extract mood data
+            mood_score = mood_analysis['mood_score']
+
+            # Determine mood label and topic based on score and content
+            if mood_score > 0.5:
+                label = "positive"
+                topic = "happy"
+            elif mood_score < -0.5:
+                label = "negative"
+                topic = "sad"
+            elif mood_score > 0:
+                label = "slightly_positive"
+                topic = "content"
+            else:
+                label = "slightly_negative"
+                topic = "concern"
+
+            # Extract topic from message content
+            user_input_lower = user_input.lower()
+            if any(word in user_input_lower for word in ['work', 'job', 'office', 'boss']):
+                topic = "work"
+            elif any(word in user_input_lower for word in ['family', 'mom', 'dad', 'sister', 'brother']):
+                topic = "family"
+            elif any(word in user_input_lower for word in ['health', 'tired', 'sick', 'headache']):
+                topic = "health"
+            elif any(word in user_input_lower for word in ['relationship', 'boyfriend', 'girlfriend', 'friend']):
+                topic = "relationships"
+            elif any(word in user_input_lower for word in ['school', 'study', 'exam', 'class']):
+                topic = "education"
+
+            # Log the mood to Supabase
+            self._log_mood(mood_score, label, topic)
+
+            logger.info(f"Auto mood logged: score={mood_score:.2f}, label={label}, topic={topic}")
+
+            return {
+                'score': mood_score,
+                'label': label,
+                'topic': topic,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"Auto mood analysis failed: {e}", exc_info=True)
+            return None
 
     # ====== Helper Methods ======
 
