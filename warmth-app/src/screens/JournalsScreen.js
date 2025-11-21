@@ -1,19 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Platform,
     SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import api from '../services/api';
-import { theme } from '../theme';
+import theme from '../theme';
 
 const EmotionChip = ({ emotion, emoji }) => (
     <Animated.View entering={FadeIn.delay(200).duration(300)} style={styles.emotionChip}>
@@ -45,7 +45,7 @@ const RecommendationCard = ({ emoji, title, description, action, onPress, index 
     </Animated.View>
 );
 
-const InsightsScreen = ({ navigation }) => {
+const JournalsScreen = ({ navigation }) => {
     const [recap, setRecap] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -79,39 +79,43 @@ const InsightsScreen = ({ navigation }) => {
 
     if (loading) {
         return (
-            <SafeAreaView style={styles.container}>
-                <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
-                    <Text style={styles.loadingText}>Loading your insights...</Text>
-                </View>
-            </SafeAreaView>
+            <LinearGradient colors={theme.colors.backgroundGradient} style={styles.container}>
+                <SafeAreaView style={styles.safeArea}>
+                    <StatusBar barStyle="dark-content" />
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                        <Text style={styles.loadingText}>Loading your journal...</Text>
+                    </View>
+                </SafeAreaView>
+            </LinearGradient>
         );
     }
 
     if (error || !recap) {
         return (
-            <SafeAreaView style={styles.container}>
-                <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
-                <View style={styles.header}>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
-                        accessibilityLabel="Go back"
-                    >
-                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Insights</Text>
-                    <View style={styles.headerSpacer} />
-                </View>
-                <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle-outline" size={64} color={theme.colors.textSecondary} />
-                    <Text style={styles.errorText}>{error || 'No recap available yet'}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={loadRecap}>
-                        <Text style={styles.retryButtonText}>Try Again</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
+            <LinearGradient colors={theme.colors.backgroundGradient} style={styles.container}>
+                <SafeAreaView style={styles.safeArea}>
+                    <StatusBar barStyle="dark-content" />
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => navigation.goBack()}
+                            accessibilityLabel="Go back"
+                        >
+                            <Text style={styles.backText}>←</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>Journals & Advice</Text>
+                        <View style={styles.headerSpacer} />
+                    </View>
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyEmoji}>📔</Text>
+                        <Text style={styles.emptyTitle}>Your journal is waiting</Text>
+                        <Text style={styles.emptyMessage}>
+                            Keep chatting with Warmth, and I'll create a beautiful 3-day journal for you with personalized insights and advice.
+                        </Text>
+                    </View>
+                </SafeAreaView>
+            </LinearGradient>
         );
     }
 
@@ -120,107 +124,110 @@ const InsightsScreen = ({ navigation }) => {
     const recommendations = recap.recommendations || [];
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+        <LinearGradient colors={theme.colors.backgroundGradient} style={styles.container}>
+            <SafeAreaView style={styles.safeArea}>
+                <StatusBar barStyle="dark-content" />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                    accessibilityLabel="Go back"
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => navigation.goBack()}
+                        accessibilityLabel="Go back"
+                    >
+                        <Text style={styles.backText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Journals & Advice</Text>
+                    <View style={styles.headerSpacer} />
+                </View>
+
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
                 >
-                    <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Your 3-Day Journey</Text>
-                <View style={styles.headerSpacer} />
-            </View>
+                    {/* Headline */}
+                    <Animated.View entering={FadeIn.duration(600)} style={styles.headlineContainer}>
+                        <Text style={styles.headline}>{recap.headline}</Text>
+                    </Animated.View>
 
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Headline */}
-                <Animated.View entering={FadeIn.duration(600)} style={styles.headlineContainer}>
-                    <Text style={styles.headline}>{recap.headline}</Text>
-                </Animated.View>
+                    {/* Narrative */}
+                    <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.narrativeCard}>
+                        <Text style={styles.narrativeText}>{recap.narrative}</Text>
+                    </Animated.View>
 
-                {/* Narrative */}
-                <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.narrativeCard}>
-                    <Text style={styles.narrativeText}>{recap.narrative}</Text>
-                </Animated.View>
+                    {/* Emotions */}
+                    {emotions.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>How You've Been Feeling</Text>
+                            <View style={styles.emotionChipsContainer}>
+                                {emotions.map((emotion, index) => (
+                                    <EmotionChip
+                                        key={index}
+                                        emotion={emotion.name}
+                                        emoji={emotion.emoji}
+                                    />
+                                ))}
+                            </View>
+                        </View>
+                    )}
 
-                {/* Emotions */}
-                {emotions.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>How You've Been Feeling</Text>
-                        <View style={styles.emotionChipsContainer}>
-                            {emotions.map((emotion, index) => (
-                                <EmotionChip
+                    {/* Topics */}
+                    {topics.length > 0 && (
+                        <Animated.View
+                            entering={FadeInDown.delay(300).duration(500)}
+                            style={styles.section}
+                        >
+                            <Text style={styles.sectionTitle}>What's Been On Your Mind</Text>
+                            <View style={styles.topicsContainer}>
+                                {topics.map((topic, index) => (
+                                    <View key={index} style={styles.topicTag}>
+                                        <Text style={styles.topicText}>{topic}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </Animated.View>
+                    )}
+
+                    {/* Recommendations */}
+                    {recommendations.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Gentle Recommendations</Text>
+                            {recommendations.map((rec, index) => (
+                                <RecommendationCard
                                     key={index}
-                                    emotion={emotion.name}
-                                    emoji={emotion.emoji}
+                                    index={index}
+                                    emoji={rec.emoji}
+                                    title={rec.title}
+                                    description={rec.description}
+                                    action={rec.action}
+                                    onPress={() => handleRecommendationPress(rec)}
                                 />
                             ))}
                         </View>
-                    </View>
-                )}
+                    )}
 
-                {/* Topics */}
-                {topics.length > 0 && (
+                    {/* Date Range */}
                     <Animated.View
-                        entering={FadeInDown.delay(300).duration(500)}
-                        style={styles.section}
+                        entering={FadeIn.delay(600).duration(400)}
+                        style={styles.dateContainer}
                     >
-                        <Text style={styles.sectionTitle}>What's Been On Your Mind</Text>
-                        <View style={styles.topicsContainer}>
-                            {topics.map((topic, index) => (
-                                <View key={index} style={styles.topicTag}>
-                                    <Text style={styles.topicText}>{topic}</Text>
-                                </View>
-                            ))}
-                        </View>
+                        <Text style={styles.dateText}>
+                            {new Date(recap.start_date).toLocaleDateString()} - {new Date(recap.end_date).toLocaleDateString()}
+                        </Text>
                     </Animated.View>
-                )}
-
-                {/* Recommendations */}
-                {recommendations.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Gentle Recommendations</Text>
-                        {recommendations.map((rec, index) => (
-                            <RecommendationCard
-                                key={index}
-                                index={index}
-                                emoji={rec.emoji}
-                                title={rec.title}
-                                description={rec.description}
-                                action={rec.action}
-                                onPress={() => handleRecommendationPress(rec)}
-                            />
-                        ))}
-                    </View>
-                )}
-
-                {/* Date Range */}
-                <Animated.View
-                    entering={FadeIn.delay(600).duration(400)}
-                    style={styles.dateContainer}
-                >
-                    <Text style={styles.dateText}>
-                        {new Date(recap.start_date).toLocaleDateString()} - {new Date(recap.end_date).toLocaleDateString()}
-                    </Text>
-                </Animated.View>
-            </ScrollView>
-        </SafeAreaView>
+                </ScrollView>
+            </SafeAreaView>
+        </LinearGradient>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.colors.background,
-        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    },
+    safeArea: {
+        flex: 1,
     },
     header: {
         flexDirection: 'row',
@@ -234,7 +241,11 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         justifyContent: 'center',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+    },
+    backText: {
+        fontSize: 24,
+        color: theme.colors.primary,
     },
     headerTitle: {
         flex: 1,
@@ -258,31 +269,30 @@ const styles = StyleSheet.create({
         color: theme.colors.textSecondary,
         fontFamily: theme.typography.body.fontFamily,
     },
-    errorContainer: {
+    emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: theme.spacing.xl,
         gap: theme.spacing.md,
     },
-    errorText: {
+    emptyEmoji: {
+        fontSize: 64,
+        marginBottom: theme.spacing.sm,
+    },
+    emptyTitle: {
+        fontSize: 24,
+        fontWeight: '600',
+        color: theme.colors.text,
+        fontFamily: theme.typography.heading.fontFamily,
+        textAlign: 'center',
+    },
+    emptyMessage: {
         fontSize: 16,
+        lineHeight: 24,
         color: theme.colors.textSecondary,
         fontFamily: theme.typography.body.fontFamily,
         textAlign: 'center',
-    },
-    retryButton: {
-        backgroundColor: theme.colors.primary,
-        paddingHorizontal: theme.spacing.lg,
-        paddingVertical: theme.spacing.sm,
-        borderRadius: 20,
-        marginTop: theme.spacing.md,
-    },
-    retryButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFFFFF',
-        fontFamily: theme.typography.body.fontFamily,
     },
     scrollView: {
         flex: 1,
@@ -424,4 +434,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default InsightsScreen;
+export default JournalsScreen;

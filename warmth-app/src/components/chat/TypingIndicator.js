@@ -8,7 +8,7 @@ import Animated, {
     withSequence,
     withTiming,
 } from 'react-native-reanimated';
-import { theme } from '../../theme';
+import theme from '../../theme';
 
 const TypingIndicator = () => {
     const dot1 = useSharedValue(0);

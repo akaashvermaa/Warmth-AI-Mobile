@@ -1,9 +1,9 @@
 // API Service for Warmth Backend
-const BACKEND_URL = 'http://127.0.0.1:5001';
+import ENV from '../config/env';
 
 class WarmthAPI {
   constructor() {
-    this.baseUrl = BACKEND_URL;
+    this.baseUrl = ENV.API_URL;
     this.authToken = null;
   }
 

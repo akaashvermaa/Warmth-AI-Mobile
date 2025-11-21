@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
 import {
     KeyboardAvoidingView,
     Platform,
@@ -13,22 +12,20 @@ import Animated, {
     useSharedValue,
     withSpring
 } from 'react-native-reanimated';
-import { theme } from '../../theme';
+import theme from '../../theme';
 
-const InputBar = ({ onSend, placeholder = "Talk to Warmth…", disabled = false }) => {
-    const [message, setMessage] = useState('');
+const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmth…", disabled = false }) => {
     const sendButtonScale = useSharedValue(0.8);
 
     const handleSend = () => {
-        if (message.trim() && !disabled) {
-            onSend(message.trim());
-            setMessage('');
+        if (value && value.trim() && !disabled) {
+            onSend();
             sendButtonScale.value = withSpring(0.8);
         }
     };
 
     const handleTextChange = (text) => {
-        setMessage(text);
+        onChangeText(text);
         // Animate send button when text is present
         if (text.trim()) {
             sendButtonScale.value = withSpring(1);
@@ -42,7 +39,7 @@ const InputBar = ({ onSend, placeholder = "Talk to Warmth…", disabled = false 
         opacity: sendButtonScale.value,
     }));
 
-    const canSend = message.trim().length > 0 && !disabled;
+    const canSend = value && value.trim().length > 0 && !disabled;
 
     return (
         <KeyboardAvoidingView
@@ -53,7 +50,7 @@ const InputBar = ({ onSend, placeholder = "Talk to Warmth…", disabled = false 
                 <View style={styles.inputContainer}>
                     <TextInput
                         style={styles.input}
-                        value={message}
+                        value={value}
                         onChangeText={handleTextChange}
                         placeholder={placeholder}
                         placeholderTextColor={theme.colors.textSecondary}
