@@ -1,6 +1,297 @@
-// app/static/js/main.js
+// ===== DEBUG: REACT NATIVE WEB OVERLAY DETECTOR =====
+// Purpose: Identify and analyze overlays that block button clicks
+(function(){
+
+    console.log('🔍 DEBUG: Starting overlay detection and removal...');
+
+    function debugDOM() {
+        console.log('=== DOM DEBUG INFO ===');
+        console.log('Total elements:', document.querySelectorAll('*').length);
+        console.log('Div elements:', document.querySelectorAll('div').length);
+        console.log('Elements with tabindex="0":', document.querySelectorAll('[tabindex="0"]').length);
+        console.log('Body children:', document.body.children.length);
+
+        // Check for overlays
+        const overlays = document.querySelectorAll('div[tabindex="0"]');
+        console.log('Potential overlays found:', overlays.length);
+        overlays.forEach((el, index) => {
+            console.log(`Overlay ${index}:`, {
+                tag: el.tagName,
+                classes: el.className,
+                tabindex: el.getAttribute('tabindex'),
+                display: window.getComputedStyle(el).display,
+                visibility: window.getComputedStyle(el).visibility,
+                pointerEvents: window.getComputedStyle(el).pointerEvents,
+                zIndex: window.getComputedStyle(el).zIndex,
+                position: window.getComputedStyle(el).position,
+                rect: el.getBoundingClientRect()
+            });
+        });
+
+        // Check specific RNW patterns
+        const rnwElements = document.querySelectorAll('[class*="css-view"], [class*="r-"]');
+        console.log('RNW elements found:', rnwElements.length);
+        rnwElements.forEach((el, index) => {
+            if (index < 5) { // Only show first 5 to avoid spam
+                console.log(`RNW ${index}:`, el.className);
+            }
+        });
+    }
+
+    function removeProblematicOverlays() {
+        console.log('🧹 Running overlay removal...');
+
+        // Target ALL React Native Web overlay elements
+        const problematicElements = document.querySelectorAll(
+            'div[class*="css-view-g5y9jx"], ' +
+            'div[class*="r-transitionProperty"], ' +
+            'div[class*="r-userSelect"], ' +
+            'div[class*="r-cursor"], ' +
+            'div[class*="r-touchAction"], ' +
+            'div[class*="r-position"], ' +
+            'div[class*="r-flex"], ' +
+            'div[tabindex="0"][class*="r-"], ' +
+            'div[tabindex="0"]:not(button):not(input):not(select):not(textarea):not(a):not([role="button"])'
+        );
+
+        console.log(`Found ${problematicElements.length} problematic elements`);
+        let removedCount = 0;
+
+        problematicElements.forEach((el, index) => {
+            try {
+                const classList = el.className || '';
+                const computedStyle = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+
+                console.log(`Processing element ${index}:`, {
+                    classes: classList,
+                    display: computedStyle.display,
+                    visibility: computedStyle.visibility,
+                    pointerEvents: computedStyle.pointerEvents,
+                    zIndex: computedStyle.zIndex,
+                    position: computedStyle.position,
+                    width: rect.width,
+                    height: rect.height,
+                    top: rect.top,
+                    left: rect.left
+                });
+
+                // Check if element is covering the page
+                if (rect.width > window.innerWidth * 0.9 && rect.height > window.innerHeight * 0.9) {
+                    console.warn('🚨 FOUND FULL-PAGE OVERLAY!', el);
+                }
+
+                // Remove if it matches any RNW pattern
+                if (classList.includes('css-view-g5y9jx') ||
+                    classList.includes('r-transitionProperty') ||
+                    classList.includes('r-userSelect') ||
+                    classList.includes('r-cursor') ||
+                    classList.includes('r-touchAction') ||
+                    (el.hasAttribute('tabindex') &&
+                     el.getAttribute('tabindex') === '0' &&
+                     classList.includes('r-'))) {
+
+                    console.log('🗑️ Removing overlay:', el.className);
+
+                    // Multiple methods to ensure removal
+                    el.style.display = 'none !important';
+                    el.style.visibility = 'hidden !important';
+                    el.style.pointerEvents = 'none !important';
+                    el.style.zIndex = '-999999 !important';
+
+                    const parent = el.parentNode;
+                    if (parent) {
+                        parent.removeChild(el);
+                        removedCount++;
+                    }
+                }
+            } catch(e) {
+                console.error('Error removing element:', e);
+            }
+        });
+
+        console.log(`✅ Removed ${removedCount} overlays`);
+        return removedCount;
+    }
+
+    // Disable ALL problematic elements by default
+    function disableProblematicElements() {
+        const elements = document.querySelectorAll('div[tabindex="0"]');
+        elements.forEach(el => {
+            // Only disable if it's not a legitimate interactive element
+            if (!el.matches('button, input, select, textarea, a, [role="button"], [onclick], button')) {
+                el.style.pointerEvents = 'none !important';
+                el.style.visibility = 'hidden !important';
+                el.style.display = 'none !important';
+            }
+        });
+    }
+
+    // Monitor DOM changes EXTREMELY aggressively
+    const observer = new MutationObserver((mutations) => {
+        removeProblematicOverlays();
+        disableProblematicElements();
+    });
+
+    // Start observing immediately
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            removeProblematicOverlays();
+            disableProblematicElements();
+            observer.observe(document.body || document.documentElement, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class', 'style', 'tabindex']
+            });
+        });
+    } else {
+        removeProblematicOverlays();
+        disableProblematicElements();
+        observer.observe(document.body || document.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'style', 'tabindex']
+        });
+    }
+
+    // Run frequently to catch overlays that slip through
+    setInterval(() => {
+        removeProblematicOverlays();
+        disableProblematicElements();
+    }, 100);
+
+    // Force click-through for intercepted clicks
+    document.addEventListener('click', function(e) {
+        console.log('🖱️ CLICK DETECTED:', {
+            target: e.target.tagName,
+            classes: e.target.className,
+            id: e.target.id,
+            coordinates: { x: e.clientX, y: e.clientY },
+            isButton: e.target.matches('button, [role="button"], [onclick]'),
+            tabindex: e.target.getAttribute('tabindex')
+        });
+
+        const target = e.target;
+        const classList = target.className || '';
+
+        // Check what element is actually at the click position
+        const elementAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+        console.log('Element at click point:', elementAtPoint.tagName, elementAtPoint.className);
+
+        // If click is on any problematic overlay, force click through
+        if (classList.includes('css-view-g5y9jx') ||
+            classList.includes('r-transitionProperty') ||
+            classList.includes('r-userSelect') ||
+            classList.includes('r-cursor') ||
+            classList.includes('r-touchAction') ||
+            classList.includes('r-') ||
+            (target.hasAttribute('tabindex') &&
+             target.getAttribute('tabindex') === '0' &&
+             !target.matches('button, input, select, textarea, a, [role="button"]'))) {
+
+            console.log('🚫 Click intercepted by overlay!');
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            // Remove the problematic overlay
+            target.remove();
+            removeProblematicOverlays();
+
+            // Find what's actually underneath and click that
+            setTimeout(() => {
+                const clickTarget = document.elementFromPoint(e.clientX, e.clientY);
+                if (clickTarget && clickTarget !== target) {
+                    console.log('🎯 Clicking through to:', clickTarget.tagName, clickTarget.className, clickTarget.id);
+                    clickTarget.click();
+                } else {
+                    console.log('❌ No valid click target found underneath');
+                }
+            }, 0);
+        } else {
+            console.log('✅ Click reached valid target:', target.tagName, target.id);
+        }
+    }, true);
+
+    // Also track hover/mousemove to see cursor behavior
+    document.addEventListener('mousemove', function(e) {
+        const elementAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+        const computedCursor = window.getComputedStyle(elementAtPoint).cursor;
+
+        if (computedCursor === 'pointer') {
+            console.log('👆 Pointer cursor on:', elementAtPoint.tagName, elementAtPoint.className, elementAtPoint.id);
+        }
+    });
+
+    // Also handle mousedown/touchstart events
+    ['mousedown', 'touchstart'].forEach(eventType => {
+        document.addEventListener(eventType, function(e) {
+            const target = e.target;
+            const classList = target.className || '';
+
+            if (classList.includes('css-view-g5y9jx') ||
+                classList.includes('r-') ||
+                (target.hasAttribute('tabindex') &&
+                 target.getAttribute('tabindex') === '0' &&
+                 !target.matches('button, input, select, textarea, a, [role="button"]'))) {
+
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+
+                target.remove();
+                removeProblematicOverlays();
+            }
+        }, true);
+    });
+
+    // Initial cleanup
+    console.log('🚀 Performing initial cleanup...');
+    debugDOM();
+    const removed = removeProblematicOverlays();
+    disableProblematicElements();
+
+    // Run debug analysis after initial cleanup
+    setTimeout(() => {
+        console.log('=== POST-CLEANUP ANALYSIS ===');
+        debugDOM();
+
+        // Test button functionality
+        const testButton = document.querySelector('#mood-button, #theme-toggle, #settings-button, button');
+        if (testButton) {
+            console.log('Test button found:', testButton);
+            const rect = testButton.getBoundingClientRect();
+            console.log('Button rect:', rect);
+            console.log('Button computed style:', {
+                display: window.getComputedStyle(testButton).display,
+                visibility: window.getComputedStyle(testButton).visibility,
+                pointerEvents: window.getComputedStyle(testButton).pointerEvents,
+                zIndex: window.getComputedStyle(testButton).zIndex,
+                cursor: window.getComputedStyle(testButton).cursor
+            });
+        } else {
+            console.warn('No test button found!');
+        }
+    }, 1000);
+
+    console.log('✅ React Native Web overlay detection activated');
+
+    // Expose debug function to console for manual testing
+    window.debugOverlays = function() {
+        console.log('🔍 Manual debug trigger...');
+        debugDOM();
+        removeProblematicOverlays();
+    };
+
+    console.log('💡 Tip: Run debugOverlays() in console to manually check for overlays');
+})();
+ // ===== END OVERLAY STABILITY PATCH =====
 
 document.addEventListener('DOMContentLoaded', function() {
+
+    
 
     // --- DOM references ---
     const chatLog = document.getElementById('chat-log'),
@@ -775,3 +1066,4 @@ document.addEventListener('DOMContentLoaded', function() {
     loadListeningPreferences();
 
 }); // end DOMContentLoaded
+

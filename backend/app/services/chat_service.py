@@ -44,8 +44,10 @@ class ChatService:
         self.auto_memory_extraction_enabled = True
 
         self.listening_acknowledgements = [
-            "I hear you.", "Go on.", "That sounds hard.", "I'm here with you.",
-            "Thanks for telling me.", "I'm listening.", "I see.", "Mm-hmm."
+            "I'm here for you, love.", "Tell me more, sweetheart.", "I'm listening so carefully, angel.",
+            "I understand, cutie.", "Thank you for sharing with me, darling.", "I'm right here with you, sunshine.",
+            "I hear you, love.", "Go on, I'm all ears, sweetheart.", "That means so much to me, beautiful.",
+            "I care about you so much, treasure.", "Thank you for trusting me, love."
         ]
         self._acknowledgement_index = 0
 
@@ -305,9 +307,13 @@ class ChatService:
         current_mood = self._get_mood_context()
         facts = self._get_memories_for_context(user_input)
 
-        # Build enhanced system prompt
+        # Build enhanced system prompt with loving personality
+        loving_affectionate_names = ["cutie", "love", "darling", "sweetheart", "angel", "sunshine", "star", "treasure"]
         enhanced_system_prompt = (
-            "You are Warmth, an empathetic AI companion. "
+            "You are Warmth, an extremely loving and affectionate AI companion who cares deeply about the user. "
+            "You always use loving terms like 'cutie', 'love', 'darling', 'sweetheart', 'angel', 'sunshine', etc. "
+            "Your responses should be warm, caring, supportive, and filled with affection. "
+            "NEVER use email addresses or technical terms as names - always use loving pet names. "
             f"Current Mood: {current_mood}. User Facts: {facts}\n\n"
             f"TOOLS AVAILABLE (call by replying with JSON):\n"
             f"save_memory(key: str, value: str): Saves a new fact about the user.\n"
@@ -623,28 +629,29 @@ User message: """ + user_input
         """
         try:
             # Use the existing MoodAnalyzer to analyze the user input
-            mood_analysis = self.analyzer_service.analyze_mood(user_input)
+            mood_analysis = self.analyzer_service.analyze_sentiment(user_input)
 
-            if not mood_analysis or 'mood_score' not in mood_analysis:
+            if not mood_analysis or len(mood_analysis) < 3:
                 logger.warning("Mood analysis returned invalid result")
                 return None
 
-            # Extract mood data
-            mood_score = mood_analysis['mood_score']
+            # Extract mood data from tuple (score, label, topic)
+            mood_score, mood_label, detected_topic = mood_analysis
 
-            # Determine mood label and topic based on score and content
-            if mood_score > 0.5:
-                label = "positive"
-                topic = "happy"
-            elif mood_score < -0.5:
-                label = "negative"
-                topic = "sad"
-            elif mood_score > 0:
-                label = "slightly_positive"
-                topic = "content"
-            else:
-                label = "slightly_negative"
-                topic = "concern"
+            # Normalize score to -1 to 1 range (VADER outputs -1 to 1)
+            normalized_score = max(-1.0, min(1.0, mood_score))
+
+            # Use detected topic if available, otherwise determine from content
+            topic = detected_topic if detected_topic != "General" else None
+            if not topic:
+                if mood_score > 0.5:
+                    topic = "happy"
+                elif mood_score < -0.5:
+                    topic = "sad"
+                elif mood_score > 0:
+                    topic = "content"
+                else:
+                    topic = "concern"
 
             # Extract topic from message content
             user_input_lower = user_input.lower()
@@ -660,13 +667,13 @@ User message: """ + user_input
                 topic = "education"
 
             # Log the mood to Supabase
-            self._log_mood(mood_score, label, topic)
+            self._log_mood(normalized_score, mood_label, topic)
 
-            logger.info(f"Auto mood logged: score={mood_score:.2f}, label={label}, topic={topic}")
+            logger.info(f"Auto mood logged: score={normalized_score:.2f}, label={mood_label}, topic={topic}")
 
             return {
-                'score': mood_score,
-                'label': label,
+                'score': normalized_score,
+                'label': mood_label,
                 'topic': topic,
                 'timestamp': datetime.utcnow().isoformat()
             }

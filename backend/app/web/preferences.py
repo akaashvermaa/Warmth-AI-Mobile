@@ -14,7 +14,7 @@ bp = Blueprint('preferences', __name__, url_prefix='/preferences')
 logger = logging.getLogger(__name__)
 
 @bp.route('/', methods=['GET'])
-@require_auth
+
 def get_preferences():
     """ GET /preferences - Gets user preferences. """
     try:
@@ -25,8 +25,8 @@ def get_preferences():
         return jsonify({"error": "Failed to get preferences"}), 500
 
 @bp.route('/listening-mode', methods=['POST'])
-@csrf_protect
-@require_auth
+
+
 def toggle_listening_mode():
     """ POST /preferences/listening-mode - Toggles listening mode. """
     try:

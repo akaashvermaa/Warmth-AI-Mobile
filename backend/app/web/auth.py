@@ -5,8 +5,11 @@ Provides JWT-based authentication using Supabase Auth
 """
 import os
 import logging
+import secrets
 from flask import Blueprint, request, jsonify, current_app
 from supabase import Client
+from .. import security_headers
+from ..security import require_auth
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 logger = logging.getLogger(__name__)
@@ -40,6 +43,7 @@ def auth_status():
         return jsonify({"error": "Internal Server Error"}), 500
 
 @bp.route('/signup', methods=['POST'])
+@security_headers.dev_bypass_rate_limit("5 per minute")
 def signup():
     """
     POST /auth/signup
@@ -96,6 +100,7 @@ def signup():
         return jsonify({"error": "Registration failed"}), 500
 
 @bp.route('/signin', methods=['POST'])
+@security_headers.dev_bypass_rate_limit("10 per minute")
 def signin():
     """
     POST /auth/signin
@@ -207,35 +212,27 @@ def signout():
         return jsonify({"error": "Sign out failed"}), 401
 
 @bp.route('/user', methods=['GET'])
+@require_auth
 def get_user():
     """
     GET /auth/user
     Get current user information from JWT token
     """
     try:
-        # Get the JWT from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({"error": "Authorization header required"}), 401
+        user = getattr(request, 'current_user', None)
 
-        jwt_token = auth_header[7:]  # Remove 'Bearer ' prefix
-        supabase: Client = current_app.supabase
-
-        # Get user from JWT
-        user = supabase.auth.get_user(jwt_token)
-
-        if user and hasattr(user, 'user'):
+        if user:
             return jsonify({
                 "status": "success",
                 "user": {
-                    "id": user.user.id,
-                    "email": user.user.email,
-                    "full_name": user.user.user_metadata.get('full_name', '') if user.user.user_metadata else '',
-                    "display_name": user.user.user_metadata.get('display_name', user.user.email.split('@')[0]) if user.user.user_metadata else user.user.email.split('@')[0],
-                    "confirmed_at": str(user.user.confirmed_at) if user.user.confirmed_at else None,
-                    "created_at": str(user.user.created_at) if user.user.created_at else None,
-                    "aud": user.user.aud,
-                    "role": user.user.role
+                    "id": user.get('id'),
+                    "email": user.get('email'),
+                    "full_name": user.get('user_metadata', {}).get('full_name', ''),
+                    "display_name": user.get('user_metadata', {}).get('display_name', user.get('email', '').split('@')[0]),
+                    "confirmed_at": user.get('confirmed_at'),
+                    "created_at": user.get('created_at'),
+                    "aud": user.get('aud'),
+                    "role": user.get('role')
                 }
             }), 200
         else:
@@ -244,6 +241,84 @@ def get_user():
     except Exception as e:
         logger.error(f"Get user error: {e}", exc_info=True)
         return jsonify({"error": "Failed to get user information"}), 401
+
+@bp.route('/dev-user', methods=['POST'])
+def create_dev_user():
+    """
+    POST /auth/dev-user
+    Create or get a development user for testing (development only)
+    """
+    try:
+        # Check if development mode is enabled (TEMPORARILY OVERRIDE FOR TESTING)
+        dev_mode = (os.getenv('FLASK_ENV') == 'development' or os.getenv('ENABLE_DEV_USER', 'false').lower() == 'true')
+
+        # TEMPORARY: Force enable for testing if not explicitly production
+        if not dev_mode and not os.getenv('PRODUCTION_MODE'):
+            dev_mode = True
+            logger.info("TEMPORARY: Forcing development mode for testing")
+
+        if not dev_mode:
+            return jsonify({"error": "Development user creation is disabled in production"}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON"}), 400
+
+        user_id = data.get('user_id', 'dev_user')
+        display_name = data.get('display_name', user_id)
+        dev_email = f"dev_{user_id}@warmth.local"
+        dev_password = "dev_user_password_123"
+
+        supabase: Client = current_app.supabase
+
+        # For development, create a mock user without going through Supabase auth
+        # This avoids email confirmation issues and spam
+        import uuid
+        mock_user_id = str(uuid.uuid4())
+
+        logger.info(f"Creating mock development user: {user_id} -> {mock_user_id}")
+
+        # Create a mock JWT token for development (in production, use real Supabase)
+        import time
+        import jwt as pyjwt
+
+        # Create a simple mock token (this is just for testing)
+        mock_payload = {
+            'exp': int(time.time() + 3600),  # 1 hour expiry - convert to int
+            'sub': mock_user_id,
+            'email': f'dev.{user_id}@warmth.dev',
+            'aud': 'authenticated',
+            'role': 'authenticated',
+            'app_metadata': {
+                'provider': 'development',
+                'is_development_user': True
+            },
+            'user_metadata': {
+                'display_name': display_name,
+                'original_user_id': user_id,
+                'is_development_user': True
+            }
+        }
+
+        # Use a simple secret key for development
+        mock_secret = 'dev_secret_key_change_in_production'
+        mock_token = pyjwt.encode(mock_payload, mock_secret, algorithm='HS256')
+
+        return jsonify({
+            "status": "mock_created",
+            "message": "Mock development user created for testing",
+            "user_id": mock_user_id,
+            "email": f'dev.{user_id}@warmth.dev',
+            "access_token": mock_token,
+            "refresh_token": "mock_refresh_token",
+            "display_name": display_name,
+            "original_user_id": user_id,
+            "is_mock": True
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Dev user creation error: {e}", exc_info=True)
+        return jsonify({"error": "Development user creation failed"}), 500
 
 @bp.route('/config', methods=['GET'])
 def auth_config():
@@ -259,6 +334,7 @@ def auth_config():
             "supabase_url": supabase_url,
             "supabase_anon_key": anon_key,
             "enable_auth": os.getenv('ENABLE_AUTH', 'true').lower() == 'true',
+            "enable_dev_user": os.getenv('FLASK_ENV') == 'development' or os.getenv('ENABLE_DEV_USER', 'false').lower() == 'true',
             "providers": [
                 {"id": "email", "name": "Email", "icon": "email"},
                 {"id": "google", "name": "Google", "icon": "google"},

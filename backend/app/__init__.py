@@ -21,7 +21,7 @@ from .services.chat_service import ChatService
 from supabase import create_client, Client
 
 # --- Web Blueprint Imports ---
-from .web import main, auth, errors, memory, mood, preferences  # Supabase auth
+from .web import main, auth, errors, memory, mood, preferences, insights  # Supabase auth
 
 # --- Initialize Extensions ---
 cors = CORS()
@@ -78,6 +78,7 @@ def create_app():
     app.register_blueprint(memory.bp)
     app.register_blueprint(mood.bp)
     app.register_blueprint(preferences.bp)
+    app.register_blueprint(insights.bp)
     
     # === Inject Services onto the App Object ===
     app.chat_service = chat_service

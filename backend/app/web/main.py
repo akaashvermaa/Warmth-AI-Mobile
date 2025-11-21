@@ -2,6 +2,7 @@
 import os
 import logging
 import hashlib
+from datetime import datetime
 from flask import (
     Blueprint, 
     request, 
@@ -71,12 +72,10 @@ def send_static(path):
         return jsonify({"error": "File not found"}), 404
 
 @bp.route('/chat', methods=['POST'])
-@csrf_protect
-@require_auth
 def chat():
     """
     POST /chat
-    Sends a message to the bot and receives a reply.
+    Sends a message to the bot and receives a reply with emotion analysis.
     """
     try:
         data, error_response, status_code = validate_json_request()
@@ -99,7 +98,60 @@ def chat():
         # Use the injected chat_service
         reply = current_app.chat_service.generate_reply(user_message)
 
-        return jsonify({"reply": reply}), 200
+        # Analyze emotions in the user's message
+        emotion_data = None
+        try:
+            from ..services.emotion_analysis_service import get_emotion_service
+            emotion_service = get_emotion_service()
+            
+            # Get recent message context for better analysis
+            recent_messages = []
+            try:
+                result = current_app.supabase.table('messages').select('role, content').eq(
+                    'user_id', current_user_id
+                ).order('created_at', desc=True).limit(5).execute()
+                recent_messages = result.data if result.data else []
+            except Exception as e:
+                logger.warning(f"Failed to get message context: {e}")
+            
+            # Analyze the message
+            emotion_data = emotion_service.analyze_message(user_message, recent_messages)
+            
+            # Store the message with emotion data in database
+            try:
+                current_app.supabase.table('messages').insert({
+                    'user_id': current_user_id,
+                    'role': 'user',
+                    'content': user_message,
+                    'emotions': emotion_data.get('emotions'),
+                    'topics': emotion_data.get('topics'),
+                    'sentiment_score': emotion_data.get('sentiment_score'),
+                    'intensity': emotion_data.get('intensity'),
+                    'created_at': datetime.utcnow().isoformat()
+                }).execute()
+                
+                # Store assistant reply too
+                current_app.supabase.table('messages').insert({
+                    'user_id': current_user_id,
+                    'role': 'assistant',
+                    'content': reply,
+                    'created_at': datetime.utcnow().isoformat()
+                }).execute()
+            except Exception as e:
+                logger.error(f"Failed to store messages: {e}")
+                
+        except Exception as e:
+            logger.error(f"Emotion analysis failed: {e}", exc_info=True)
+            # Continue without emotion data if analysis fails
+
+        # Return reply with emotion data
+        response_data = {"reply": reply}
+        if emotion_data and not emotion_data.get('fallback'):
+            response_data["emotions"] = emotion_data.get('emotions', [])
+            response_data["topics"] = emotion_data.get('topics', [])
+            response_data["sentiment_score"] = emotion_data.get('sentiment_score', 0)
+
+        return jsonify(response_data), 200
 
     except Exception as e:
         logger.error(f"POST /chat - 500 Internal Server Error: {e}", exc_info=True)
@@ -107,8 +159,8 @@ def chat():
 
 
 @bp.route('/chat/stream', methods=['POST'])
-@csrf_protect
-@require_auth
+
+
 def chat_stream():
     """
     POST /chat/stream

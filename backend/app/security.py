@@ -196,7 +196,7 @@ def require_auth(f):
         if not enable_auth:
             # Authentication disabled for development
             request.current_user = {
-                'id': os.getenv('DEFAULT_USER_ID', 'local_user'),
+                'id': os.getenv('DEFAULT_USER_ID', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
                 'email': 'dev@local.dev'
             }
             return f(*args, **kwargs)

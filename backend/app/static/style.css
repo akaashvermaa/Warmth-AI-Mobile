@@ -1,5 +1,154 @@
 /* app/static/css/style.css */
 
+/* ===== NUCLEAR OPTION: Annihilate ALL React Native Web overlays ===== */
+.css-view-g5y9jx,
+div[class*="css-view-g5y9jx"],
+div[class*="r-backgroundColor"],
+div[class*="r-zIndex"],
+div[class*="r-transitionProperty"],
+div[class*="r-userSelect"],
+div[class*="r-cursor"],
+div[class*="r-touchAction"],
+div[class*="r-position"],
+div[class*="r-flex"],
+div[tabindex="0"][class*="css-view-"],
+div[tabindex="0"][class*="r-"],
+div[tabindex="0"]:not(button):not(input):not(select):not(textarea):not(a):not([role="button"]):not([onclick]) {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: -999999 !important;
+    position: absolute !important;
+    left: -999999px !important;
+    top: -999999px !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    transform: scale(0) !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(100%) !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+/* Kill ANY div with tabindex="0" that looks suspicious */
+div[tabindex="0"] {
+    pointer-events: none !important;
+}
+
+/* GLOBAL FIX: Remove any full-page overlay */
+body div[tabindex="0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    display: none !important;
+}
+
+/* Target the main full-page overlay that covers everything */
+div[tabindex="0"][style*="position"],
+div[tabindex="0"][style*="fixed"],
+div[tabindex="0"][style*="absolute"],
+div.css-view-g5y9jx[tabindex="0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    display: none !important;
+    position: absolute !important;
+    left: -10000px !important;
+    top: -10000px !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    z-index: -999999 !important;
+}
+
+/* Reset cursor for entire page */
+body, body * {
+    cursor: auto !important;
+}
+
+/* Set proper cursor only for interactive elements */
+button, [role="button"], a, input, select, textarea {
+    cursor: pointer !important;
+}
+
+/* But re-enable actual interactive elements */
+button[tabindex="0"],
+input[tabindex="0"],
+select[tabindex="0"],
+textarea[tabindex="0"],
+a[tabindex="0"],
+[role="button"][tabindex="0"],
+[onclick][tabindex="0"] {
+    pointer-events: auto !important;
+    visibility: visible !important;
+    display: inline-block !important;
+    position: relative !important;
+    z-index: 999999 !important;
+}
+
+/* Force remove any remaining overlays */
+div[tabindex="0"].css-view-g5y9jx {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: -999999 !important;
+    position: fixed !important;
+    left: -10000px !important;
+    top: -10000px !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+}
+
+/* NUCLEAR CSS: Make the overlay completely dead */
+div[tabindex="0"].css-view-g5y9jx.r-transitionProperty-1i6wzkk.r-userSelect-lrvibr.r-cursor-1loqt21.r-touchAction-1otgn73.r-flex-13awgt0 {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: -999999 !important;
+    position: absolute !important;
+    left: -999999px !important;
+    top: -999999px !important;
+    width: 0 !important;
+    height: 0 !important;
+    max-width: 0 !important;
+    max-height: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    transform: scale(0) !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(100%) !important;
+    white-space: nowrap !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+}
+
+/* Any div with these classes - TOTAL DESTRUCTION */
+div[class*="css-view-g5y9jx"]:not([class*="message"]):not([class*="chat"]):not([class*="input"]) {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: -999999 !important;
+    position: absolute !important;
+    left: -999999px !important;
+    top: -999999px !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
 /* ========= Central variables & layout tuning ========= */
 :root{
     /* Light palette */
@@ -513,6 +662,128 @@ form#chat-form {
     transform: translateZ(0); /* Force GPU layer creation */
 }
 
+/* ========== FIX: Invisible Overlay Click Blocking Prevention ========== */
+/* Prevent transparent overlays from blocking interactions */
+*[style*="opacity: 0"],
+*[style*="opacity:0"],
+div[style*="opacity: 0"],
+div[style*="opacity:0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* IMMEDIATE FIX: Target the specific overlay that's blocking clicks */
+.css-view-g5y9jx,
+div[class*="css-view-g5y9jx"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    z-index: -9999 !important;
+}
+
+/* Target specific invisible overlay patterns */
+div[class*="zIndex"][style*="opacity: 0"],
+div[class*="z-index"][style*="opacity: 0"],
+div[style*="z-index"][style*="opacity: 0"],
+div[style*="zIndex"][style*="opacity: 0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* Remove tabindex from hidden elements */
+div[style*="opacity: 0"][tabindex],
+div[style*="opacity:0"][tabindex] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* Global fix for any overlay with these characteristics */
+div[class*="css-view-"][style*="opacity: 0"],
+div[class*="css-view-"][style*="opacity:0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* Specific fix for the problematic overlay pattern */
+div[class*="css-view-"][class*="backgroundColor-"][class*="zIndex-"],
+div[class*="r-backgroundColor-"][class*="r-zIndex-"],
+div[class*="r-position-u8s1d"][class*="r-top-ipm5af"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+div[class*="css-view-"][class*="backgroundColor-"][class*="zIndex-"][style*="opacity: 0"],
+div[class*="r-backgroundColor-"][class*="r-zIndex-"][style*="opacity: 0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* AGGRESSIVE FIX: Target the exact overlay classes regardless of opacity */
+div[class*="css-view-g5y9jx"],
+div[class*="r-transitionProperty-1i6wzkk"][tabindex="0"],
+div[class*="r-userSelect-lrvibr"][tabindex="0"],
+div[class*="r-cursor-1loqt21"][tabindex="0"],
+div[class*="r-touchAction-1otgn73"][tabindex="0"],
+div[class*="r-flex-13awgt0"][tabindex="0"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    z-index: -999 !important;
+    display: none !important;
+    position: fixed !important;
+    left: -10000px !important;
+    top: -10000px !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    transform: scale(0) !important;
+}
+
+/* SUPER AGGRESSIVE: Any div with tabindex="0" that might be an overlay */
+div[tabindex="0"] {
+    pointer-events: auto !important;
+}
+
+div[tabindex="0"][class*="css-view"],
+div[tabindex="0"][class*="r-"],
+div[tabindex="0"]:not(button):not(input):not(select):not(textarea):not(a):not([role="button"]):not([onclick]):not([data-action]) {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    z-index: -999 !important;
+    display: none !important;
+    position: absolute !important;
+    left: -10000px !important;
+    top: -10000px !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* NUCLEAR OPTION: Any div with tabindex="0" and these specific classes */
+div[tabindex="0"][class*="css-view-"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    z-index: -999 !important;
+}
+
+/* FINAL STRIKEDOWN: The exact element pattern from the user
+div[class="css-view-g5y9jx r-transitionProperty-1i6wzkk r-userSelect-lrvibr r-cursor-1loqt21 r-touchAction-1otgn73 r-flex-13awgt0"][tabindex="0"],
+div.css-view-g5y9jx[tabindex="0"][style*="transition-duration"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+    z-index: -999 !important;
+    display: none !important;
+    position: absolute !important;
+    left: -10000px !important;
+    top: -10000px !important;
+} */
+
+/* ANY div with tabindex="0" that has these specific class combinations */
+div[tabindex="0"][class*="r-transitionProperty"],
+div[tabindex="0"][class*="r-userSelect"],
+div[tabindex="0"][class*="r-cursor"],
+div[tabindex="0"][class*="r-touchAction"] {
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
 /* ========== Browser Performance Optimizations ========== */
 
 /* Performance hints for animated elements */
@@ -640,3 +911,49 @@ body.dark #chat-form input:focus,
 body.dark .fixed-chat-input input:focus {
     color: #F5F5DC;
 }
+
+/* ===== WARMTH: Overlay safety rules (targets reported classes) ===== */
+/* ===== ENSURE BUTTONS ARE CLICKABLE ===== */
+button, [role="button"], [onclick], input[type="button"], input[type="submit"] {
+    position: relative !important;
+    z-index: 10000 !important;
+    pointer-events: auto !important;
+}
+
+/* Force all interactive elements to be clickable */
+button, [role="button"], [onclick], input, textarea, select, a {
+    position: relative !important;
+    z-index: 10000 !important;
+    pointer-events: auto !important;
+}
+
+/* Force important buttons to be clickable */
+#mood-button, #theme-toggle, #settings-button, #send-button,
+#close-memory-button, #close-mood-button, #modal-confirm, #modal-cancel,
+#welcome-close, #export-moods-btn, #clear-data-btn, #export-csv-button,
+#refresh-memories-btn {
+    position: relative !important;
+    z-index: 99999 !important;
+    pointer-events: auto !important;
+}
+
+/* ===== WARMTH: Overlay safety rules (safe & conditional) =====
+   Only disable overlays when they are invisible (opacity: 0). */
+/* Hide ONLY React Native Web invisible overlays */
+div.css-view-g5y9jx[style*="opacity: 0"],
+div[style*="opacity:0"][class*="css-view-g5y9jx"] {
+  pointer-events: none !important;
+  visibility: hidden !important;
+  z-index: -999 !important;
+}
+
+/* Extra narrow fallback if inline style cannot be detected:
+   Only apply when element is invisible AND has no size (defensive) */
+div[tabindex="0"][class*="css-view-"] {
+  pointer-events: none !important;
+  z-index: -999 !important;
+}
+
+
+
+

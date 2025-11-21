@@ -1,0 +1,226 @@
+"""
+Emotion Analysis Service for Warmth App
+Uses OpenAI GPT-4 to analyze chat messages for emotions, topics, and sentiment.
+"""
+import os
+import json
+import logging
+from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+import openai
+from openai import OpenAI
+
+logger = logging.getLogger(__name__)
+
+class EmotionAnalysisService:
+    """
+    Analyzes chat messages to extract emotions, topics, and sentiment.
+    """
+    
+    def __init__(self):
+        """Initialize OpenAI client."""
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            logger.warning("OPENAI_API_KEY not set - emotion analysis will be disabled")
+            self.client = None
+        else:
+            self.client = OpenAI(api_key=api_key)
+    
+    def analyze_message(self, message: str, context: List[Dict] = None) -> Dict:
+        """
+        Analyze a single message for emotions and topics.
+        
+        Args:
+            message: The message text to analyze
+            context: Optional list of previous messages for context
+            
+        Returns:
+            Dict with emotions, topics, and sentiment score
+        """
+        if not self.client:
+            return self._get_fallback_analysis()
+        
+        try:
+            # Build context string
+            context_str = ""
+            if context:
+                context_str = "\n".join([
+                    f"{'User' if msg.get('role') == 'user' else 'Assistant'}: {msg.get('content', '')}"
+                    for msg in context[-5:]  # Last 5 messages for context
+                ])
+            
+            # Create analysis prompt
+            prompt = f"""Analyze the following message for emotional content and topics.
+
+Context (previous messages):
+{context_str}
+
+Current message to analyze:
+{message}
+
+Provide a JSON response with:
+1. "emotions": Array of detected emotions (e.g., ["happy", "anxious", "tired"]). Use these categories: happy, sad, anxious, calm, tired, proud, frustrated, hopeful, lonely, grateful, overwhelmed, peaceful.
+2. "topics": Array of main topics discussed (e.g., ["work stress", "family", "self-care"])
+3. "sentiment_score": Float from -1 (very negative) to +1 (very positive)
+4. "intensity": Float from 0 (mild) to 1 (intense)
+
+Be empathetic and accurate. Focus on the user's emotional state, not the assistant's responses.
+
+Respond ONLY with valid JSON, no other text."""
+
+            # Call OpenAI API
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",  # Using mini for cost efficiency
+                messages=[
+                    {"role": "system", "content": "You are an empathetic emotion analysis assistant. Analyze messages with care and accuracy."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,  # Lower temperature for more consistent results
+                max_tokens=200,
+                response_format={"type": "json_object"}
+            )
+            
+            # Parse response
+            result = json.loads(response.choices[0].message.content)
+            
+            # Validate and normalize
+            return {
+                'emotions': result.get('emotions', [])[:5],  # Max 5 emotions
+                'topics': result.get('topics', [])[:5],  # Max 5 topics
+                'sentiment_score': max(-1.0, min(1.0, float(result.get('sentiment_score', 0)))),
+                'intensity': max(0.0, min(1.0, float(result.get('intensity', 0.5)))),
+                'analyzed_at': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Emotion analysis failed: {e}", exc_info=True)
+            return self._get_fallback_analysis()
+    
+    def generate_3day_recap(self, messages: List[Dict], user_id: str) -> Dict:
+        """
+        Generate a 3-day emotional recap from recent messages.
+        
+        Args:
+            messages: List of messages from the last 3 days
+            user_id: User ID for the recap
+            
+        Returns:
+            Dict with headline, narrative, top emotions, topics, and recommendations
+        """
+        if not self.client or not messages:
+            return self._get_fallback_recap()
+        
+        try:
+            # Extract user messages only
+            user_messages = [
+                msg.get('content', '') 
+                for msg in messages 
+                if msg.get('role') == 'user'
+            ]
+            
+            if not user_messages:
+                return self._get_fallback_recap()
+            
+            # Aggregate existing emotion data
+            all_emotions = []
+            all_topics = []
+            sentiment_scores = []
+            
+            for msg in messages:
+                if msg.get('emotions'):
+                    all_emotions.extend(msg['emotions'])
+                if msg.get('topics'):
+                    all_topics.extend(msg['topics'])
+                if msg.get('sentiment_score') is not None:
+                    sentiment_scores.append(msg['sentiment_score'])
+            
+            # Create recap prompt
+            prompt = f"""Create a compassionate 3-day emotional summary for a user.
+
+User's messages over the last 3 days:
+{chr(10).join(user_messages[:20])}  # Limit to 20 most recent
+
+Detected emotions: {', '.join(set(all_emotions))}
+Detected topics: {', '.join(set(all_topics))}
+Average sentiment: {sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0:.2f}
+
+Create a JSON response with:
+1. "headline": A warm, empathetic one-sentence summary (e.g., "You've been carrying a lot — here's a gentle look back.")
+2. "narrative": A 2-3 sentence compassionate narrative about their emotional journey
+3. "top_emotions": Array of 3-5 most prominent emotions with emoji (e.g., [{{"emoji": "😔", "label": "tired", "count": 5}}])
+4. "key_topics": Array of 3-5 main topics discussed
+5. "recommendations": Array of 2-3 gentle action suggestions (e.g., [{{"icon": "🫁", "title": "Try a 2-minute breathing break", "action": "breathing"}}])
+
+Be warm, non-judgmental, and supportive. Focus on encouragement and tiny actionable steps.
+
+Respond ONLY with valid JSON."""
+
+            # Call OpenAI API
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a compassionate emotional wellness assistant. Create supportive, non-judgmental summaries."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,  # Slightly higher for more natural language
+                max_tokens=500,
+                response_format={"type": "json_object"}
+            )
+            
+            # Parse response
+            result = json.loads(response.choices[0].message.content)
+            
+            return {
+                'user_id': user_id,
+                'start_date': (datetime.utcnow() - timedelta(days=3)).isoformat(),
+                'end_date': datetime.utcnow().isoformat(),
+                'headline': result.get('headline', 'Your 3-day emotional journey'),
+                'narrative': result.get('narrative', ''),
+                'top_emotions': result.get('top_emotions', [])[:5],
+                'key_topics': result.get('key_topics', [])[:5],
+                'recommendations': result.get('recommendations', [])[:3],
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"3-day recap generation failed: {e}", exc_info=True)
+            return self._get_fallback_recap()
+    
+    def _get_fallback_analysis(self) -> Dict:
+        """Return fallback analysis when OpenAI is unavailable."""
+        return {
+            'emotions': [],
+            'topics': [],
+            'sentiment_score': 0.0,
+            'intensity': 0.5,
+            'analyzed_at': datetime.utcnow().isoformat(),
+            'fallback': True
+        }
+    
+    def _get_fallback_recap(self) -> Dict:
+        """Return fallback recap when OpenAI is unavailable."""
+        return {
+            'headline': 'Keep sharing — I\'m here to listen',
+            'narrative': 'Continue talking with me to build your emotional insights.',
+            'top_emotions': [],
+            'key_topics': [],
+            'recommendations': [
+                {
+                    'icon': '💬',
+                    'title': 'Keep chatting with me',
+                    'action': 'chat'
+                }
+            ],
+            'created_at': datetime.utcnow().isoformat(),
+            'fallback': True
+        }
+
+# Singleton instance
+_emotion_service = None
+
+def get_emotion_service() -> EmotionAnalysisService:
+    """Get or create the emotion analysis service singleton."""
+    global _emotion_service
+    if _emotion_service is None:
+        _emotion_service = EmotionAnalysisService()
+    return _emotion_service

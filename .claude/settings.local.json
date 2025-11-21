@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npm view:*)",
+      "Bash(npx expo start:*)",
+      "Bash(taskkill:*)",
+      "Bash(nul:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(curl:*)",
+      "Bash(chcp:*)",
+      "Bash(python:*)",
+      "Bash(git grep:*)",
+      "Bash(ren:*)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force ''E:\\WarmthApp\\mobile\\node_modules'' -ErrorAction SilentlyContinue; echo ''Mobile node_modules cleaned (saved ~333MB)''\")",
+      "Bash(powershell:*)",
+      "Bash(npx tsc:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
