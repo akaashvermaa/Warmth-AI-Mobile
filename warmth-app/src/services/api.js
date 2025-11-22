@@ -33,7 +33,8 @@ class WarmthAPI {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       return await response.json();
@@ -64,6 +65,10 @@ class WarmthAPI {
         listening_mode: listeningMode,
       }),
     });
+  }
+
+  async getChatHistory(limit = 50) {
+    return this.request(`/chat/history?limit=${limit}`);
   }
 
   // Memory endpoints
@@ -109,6 +114,10 @@ class WarmthAPI {
     return this.request('/insights/recap/latest');
   }
 
+  async getMemoryGraph() {
+    return this.request('/insights/memory-graph');
+  }
+
   async generateRecap() {
     return this.request('/insights/recap/generate', {
       method: 'POST',
@@ -120,7 +129,7 @@ class WarmthAPI {
     return this.request('/mood', {
       method: 'POST',
       body: JSON.stringify({
-        mood,
+        score: mood, // Backend expects 'score'
         note,
         timestamp: new Date().toISOString(),
       }),
@@ -171,7 +180,7 @@ class WarmthAPI {
     return this.request('/health');
   }
 
-  // Auth endpoints (for future use)
+  // Auth endpoints
   async getAuthStatus() {
     return this.request('/auth/status');
   }
@@ -195,6 +204,38 @@ class WarmthAPI {
     }
 
     return response;
+  }
+
+  async signIn(email, password) {
+    const response = await this.request('/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (response.access_token) {
+      this.setAuthToken(response.access_token);
+    }
+    return response;
+  }
+
+  async signUp(email, password, fullName) {
+    return this.request('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        full_name: fullName
+      }),
+    });
+  }
+
+  async signOut() {
+    try {
+      await this.request('/auth/signout', { method: 'POST' });
+    } catch (error) {
+      console.warn('Server signout failed:', error);
+    }
+    this.clearAuthToken();
   }
 }
 

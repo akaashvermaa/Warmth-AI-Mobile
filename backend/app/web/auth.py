@@ -77,12 +77,25 @@ def signup():
 
         if result and hasattr(result, 'user'):
             logger.info(f"User registered successfully: {email}")
-            return jsonify({
+            
+            # Build response
+            response_data = {
                 "status": "success",
-                "message": "Account created successfully. Please check your email to verify your account.",
                 "user_id": result.user.id,
                 "email": result.user.email
-            }), 201
+            }
+            
+            # If Supabase auto-confirmed the email, return the session token for auto-login
+            if hasattr(result, 'session') and result.session:
+                response_data["access_token"] = result.session.access_token
+                response_data["refresh_token"] = result.session.refresh_token
+                response_data["expires_in"] = result.session.expires_in
+                response_data["message"] = "Account created successfully"
+            else:
+                # Email confirmation required
+                response_data["message"] = "Account created successfully. Please check your email to verify your account."
+            
+            return jsonify(response_data), 201
         else:
             return jsonify({"error": "Registration failed"}), 400
 

@@ -229,12 +229,39 @@ def require_auth(f):
 
 def get_current_user_id() -> str:
     """
-    Helper function to get current user ID from request context.
+    Helper function to get current user ID from JWT token.
+    Extracts user ID directly from the Authorization header.
 
     Returns:
-        str: Current user ID
+        str: Current user ID from JWT token, or 'local_user' if no valid token
     """
-    return getattr(request, 'current_user', {}).get('id', 'local_user')
+    # First check if user is already in request context
+    user_id = getattr(request, 'current_user', {}).get('id')
+    if user_id:
+        return user_id
+    
+    # Extract JWT token from Authorization header
+    token = extract_auth_token()
+    if not token:
+        logger.warning("No auth token found, using 'local_user'")
+        return 'local_user'
+    
+    # Validate and extract user from token
+    try:
+        from flask import current_app
+        supabase = current_app.supabase
+        user_info = validate_supabase_jwt(token, supabase)
+        
+        if user_info and 'id' in user_info:
+            # Cache in request context for future calls
+            request.current_user = user_info
+            return user_info['id']
+        else:
+            logger.warning("Invalid token, using 'local_user'")
+            return 'local_user'
+    except Exception as e:
+        logger.error(f"Error extracting user from token: {e}")
+        return 'local_user'
 
 def get_current_user_info() -> dict:
     """

@@ -1,3 +1,4 @@
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,35 +17,53 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import api from './src/services/api';
 import theme from './src/theme';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AuthScreen from './src/screens/AuthScreen';
+
 const Stack = createStackNavigator();
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Load Inter fonts
+  let [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
 
   // Initialize app
   useEffect(() => {
-    initializeApp();
+    checkAuth();
   }, []);
 
-  const initializeApp = async () => {
+  const checkAuth = async () => {
     try {
-      // Initialize authentication
-      try {
-        const deviceId = 'mobile_user_' + Math.random().toString(36).substr(2, 9);
-        await api.createDevUser(deviceId, 'Warmth Mobile User');
-        console.log('✅ Authentication initialized');
-      } catch (authError) {
-        console.error('⚠️ Auth initialization failed:', authError);
-        // Continue anyway - app can still work without auth for some features
+      const token = await AsyncStorage.getItem('auth_token');
+      if (token) {
+        api.setAuthToken(token);
+
+        // Quick validation: try to fetch chat history
+        try {
+          await api.getChatHistory(1); // Just fetch 1 message to test
+          setIsAuthenticated(true);
+        } catch (error) {
+          // Token is invalid, clear it
+          console.log('Token invalid, clearing...');
+          await AsyncStorage.removeItem('auth_token');
+          api.clearAuthToken();
+          setIsAuthenticated(false);
+        }
       }
     } catch (error) {
-      console.error('Error initializing app:', error);
+      console.error('Auth check failed:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !fontsLoaded) {
     return (
       <LinearGradient colors={theme.colors.backgroundGradient} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
@@ -58,6 +77,19 @@ export default function App() {
     );
   }
 
+  const handleLogout = async () => {
+    try {
+      // Clear token from storage
+      await AsyncStorage.removeItem('auth_token');
+      // Clear token from API client
+      api.clearAuthToken();
+      // Update auth state
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -68,9 +100,19 @@ export default function App() {
           gestureEnabled: true,
         }}
       >
-        <Stack.Screen name="Chat" component={ChatScreen} />
-        <Stack.Screen name="Journals" component={JournalsScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
+        {!isAuthenticated ? (
+          <Stack.Screen name="Auth">
+            {props => <AuthScreen {...props} onLogin={() => setIsAuthenticated(true)} />}
+          </Stack.Screen>
+        ) : (
+          <>
+            <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="Journals" component={JournalsScreen} />
+            <Stack.Screen name="Settings">
+              {props => <SettingsScreen {...props} onLogout={handleLogout} />}
+            </Stack.Screen>
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

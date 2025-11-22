@@ -116,25 +116,26 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: theme.spacing.md,
+        paddingRight: 20, // Moved inward
     },
     iconContainer: {
         position: 'relative',
-        width: 32,
-        height: 32,
+        width: 28, // Reduced from 32
+        height: 28, // Reduced from 32
         justifyContent: 'center',
         alignItems: 'center',
+        marginLeft: 16, // Replaced gap with marginLeft
     },
     glow: {
         position: 'absolute',
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 28, // Reduced from 32
+        height: 28, // Reduced from 32
+        borderRadius: 14, // Reduced from 16
         backgroundColor: theme.colors.iconGlow,
     },
     icon: {
-        width: 24,
-        height: 24,
+        width: 22, // Reduced from 24
+        height: 22, // Reduced from 24
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1,
@@ -142,8 +143,8 @@ const styles = StyleSheet.create({
 
     // Settings icon
     settingsIcon: {
-        width: 24,
-        height: 24,
+        width: 22, // Reduced from 24
+        height: 22, // Reduced from 24
         position: 'relative',
     },
     settingsCircle: {
@@ -165,8 +166,8 @@ const styles = StyleSheet.create({
 
     // Journals icon
     journalsIcon: {
-        width: 24,
-        height: 24,
+        width: 22, // Reduced from 24
+        height: 22, // Reduced from 24
         position: 'relative',
     },
     journalsPage: {

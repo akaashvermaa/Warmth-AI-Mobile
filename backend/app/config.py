@@ -17,7 +17,7 @@ SLOW_RESPONSE_THRESHOLD = float(os.getenv('SLOW_RESPONSE_THRESHOLD', '5.0'))
 AUTO_MEMORIZE_COOLDOWN = int(os.getenv('AUTO_MEMORIZE_COOLDOWN', '10'))
 
 # User Configuration
-DEFAULT_USER_ID = os.getenv('DEFAULT_USER_ID', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
+DEFAULT_USER_ID = os.getenv('DEFAULT_USER_ID', 'b62ed4f8-6b5c-4095-9096-dfef6c968182')
 
 # Security Configuration
 # IMPORTANT: FLASK_SECRET_KEY must be set via environment variable for security

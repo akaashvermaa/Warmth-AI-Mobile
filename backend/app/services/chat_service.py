@@ -37,7 +37,8 @@ class ChatService:
         self.search_result_cache = SearchResultCache(self.cache_manager)
 
         self.history = []
-        # user_id will be set dynamically per request
+        # Thread-local storage for request-specific context
+        self._local = threading.local()
         self.default_user_id = DEFAULT_USER_ID
         self.last_memorize_time = {}
         self.last_user_message_time = {}
@@ -54,12 +55,12 @@ class ChatService:
     # ====== User Context Methods ======
 
     def set_user_context(self, user_id: str):
-        """Set the current user context for the request."""
-        self.current_user_id = user_id
+        """Set the current user context for the request (Thread-Safe)."""
+        self._local.user_id = user_id
 
     def get_current_user_id(self) -> str:
         """Get the current user ID, falling back to default if not set."""
-        return getattr(self, 'current_user_id', self.default_user_id)
+        return getattr(self._local, 'user_id', self.default_user_id)
 
     # ====== Supabase Helper Methods ======
 

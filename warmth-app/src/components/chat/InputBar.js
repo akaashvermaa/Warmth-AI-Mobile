@@ -1,21 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
     KeyboardAvoidingView,
     Platform,
     StyleSheet,
     TextInput,
     TouchableOpacity,
-    View,
 } from 'react-native';
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withSpring
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme from '../../theme';
 
 const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€¦", disabled = false }) => {
     const sendButtonScale = useSharedValue(0.8);
+    const insets = useSafeAreaInsets();
 
     const handleSend = () => {
         if (value && value.trim() && !disabled) {
@@ -39,21 +42,28 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
         opacity: sendButtonScale.value,
     }));
 
-    const canSend = value && value.trim().length > 0 && !disabled;
+    // Only show send button when there's text
+    const showSendButton = value && value.trim().length > 0;
 
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+            style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}
         >
-            <View style={styles.container}>
-                <View style={styles.inputContainer}>
+            <LinearGradient
+                colors={theme.colors.inputGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientContainer}
+            >
+                <BlurView intensity={6} tint="light" style={styles.blurContainer}>
                     <TextInput
                         style={styles.input}
+                        placeholder={placeholder}
+                        placeholderTextColor={theme.colors.textQuiet}
                         value={value}
                         onChangeText={handleTextChange}
-                        placeholder={placeholder}
-                        placeholderTextColor={theme.colors.textSecondary}
                         multiline
                         maxLength={1000}
                         editable={!disabled}
@@ -62,71 +72,71 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
                         blurOnSubmit={false}
                     />
 
-                    <Animated.View style={sendButtonStyle}>
-                        <TouchableOpacity
-                            style={[
-                                styles.sendButton,
-                                canSend ? styles.sendButtonActive : styles.sendButtonInactive,
-                            ]}
-                            onPress={handleSend}
-                            disabled={!canSend}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="arrow-forward"
-                                size={20}
-                                color={canSend ? '#FFFFFF' : theme.colors.textSecondary}
-                            />
-                        </TouchableOpacity>
-                    </Animated.View>
-                </View>
-            </View>
+                    {showSendButton && (
+                        <Animated.View style={[styles.sendButtonWrapper, sendButtonStyle]}>
+                            <TouchableOpacity
+                                onPress={handleSend}
+                                disabled={!value.trim() || disabled}
+                                style={styles.sendButton}
+                            >
+                                <Ionicons
+                                    name="arrow-up"
+                                    size={20}
+                                    color="#FFF"
+                                />
+                            </TouchableOpacity>
+                        </Animated.View>
+                    )}
+                </BlurView>
+            </LinearGradient>
         </KeyboardAvoidingView>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: theme.colors.background,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.surface,
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
-        paddingBottom: Platform.OS === 'ios' ? theme.spacing.md : theme.spacing.sm,
+        paddingTop: theme.spacing.sm,
     },
-    inputContainer: {
+    gradientContainer: {
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: theme.colors.inputBorder,
+    },
+    blurContainer: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        backgroundColor: theme.colors.surface,
-        borderRadius: 24,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.xs,
-        minHeight: 48,
-        maxHeight: 120,
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        minHeight: 56,
     },
     input: {
         flex: 1,
-        fontSize: 16,
-        lineHeight: 22,
-        color: theme.colors.text,
         fontFamily: theme.typography.body.fontFamily,
-        paddingVertical: theme.spacing.sm,
-        paddingRight: theme.spacing.sm,
-        maxHeight: 100,
+        fontSize: 16,
+        color: theme.colors.text,
+        maxHeight: 120,
+        paddingTop: 0,
+        paddingBottom: 0,
+        marginRight: theme.spacing.sm,
+        outlineStyle: 'none',
     },
-    sendButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
+    sendButtonWrapper: {
         marginBottom: 2,
     },
-    sendButtonActive: {
+    sendButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         backgroundColor: theme.colors.primary,
-    },
-    sendButtonInactive: {
-        backgroundColor: 'transparent',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 2,
     },
 });
 

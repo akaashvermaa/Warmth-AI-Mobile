@@ -27,10 +27,10 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
         transform: [{ scale: scale.value }],
     }));
 
-    // Animation: user messages slide from right, assistant from left
+    // Animation: gentler, faster transitions (220ms ease-out)
     const entering = isUser
-        ? FadeInUp.duration(300).springify()
-        : FadeInDown.duration(300).springify();
+        ? FadeInUp.duration(220)
+        : FadeInDown.duration(220);
 
     // Gradient colors based on message type
     const gradientColors = isUser
@@ -46,11 +46,11 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
                 <LinearGradient
                     colors={gradientColors}
                     start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                    end={{ x: 0, y: 1 }}
                     style={[
                         styles.bubble,
                         isUser ? styles.userBubble : styles.assistantBubble,
-                        theme.shadows.bubble
+                        !isUser && theme.shadows.bubble // Only AI bubble has shadow
                     ]}
                 >
                     <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
@@ -95,8 +95,9 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
 
 const styles = StyleSheet.create({
     container: {
-        marginVertical: theme.spacing.sm,
+        marginVertical: 4, // 8px gap between bubbles (4 top + 4 bottom)
         paddingHorizontal: theme.spacing.md,
+        width: '100%',
     },
     userContainer: {
         alignItems: 'flex-end',
@@ -105,17 +106,21 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     bubbleWrapper: {
-        maxWidth: '80%',
+        maxWidth: '75%', // Max width 75%
     },
     bubble: {
-        borderRadius: theme.borderRadius.bubble,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm + 2,
+        borderRadius: 18, // Radius 18
+        paddingHorizontal: 16, // Padding 16h
+        paddingVertical: 14, // Padding 14v
     },
     userBubble: {
+        borderWidth: 1,
+        borderColor: theme.colors.userBubbleBorder, // #E9C6BE
         borderBottomRightRadius: 4,
     },
     assistantBubble: {
+        borderWidth: 1,
+        borderColor: theme.colors.aiBubbleBorder, // #F0D7C8
         borderBottomLeftRadius: 4,
     },
     messageText: {
@@ -123,26 +128,28 @@ const styles = StyleSheet.create({
         color: theme.colors.text,
     },
     userText: {
-        color: '#2D2D2D',  // Dark text on light gradient
+        color: theme.colors.text,
     },
     assistantText: {
         color: theme.colors.text,
     },
     timestamp: {
         ...theme.typography.timestamp,
-        marginTop: theme.spacing.xs,
+        marginTop: 4,
+        alignSelf: 'flex-end',
     },
     userTimestamp: {
-        color: '#999999',
+        color: theme.colors.textSecondary,
     },
     assistantTimestamp: {
-        color: theme.colors.textQuiet,
+        color: theme.colors.textSecondary,
     },
     emotionChipsContainer: {
         flexDirection: 'row',
         marginTop: theme.spacing.xs,
         gap: theme.spacing.xs,
         flexWrap: 'wrap',
+        justifyContent: 'flex-end', // Align chips to right for user
     },
     emotionChip: {
         borderRadius: 12,

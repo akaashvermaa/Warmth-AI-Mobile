@@ -71,6 +71,42 @@ def send_static(path):
         logger.warning(f"Static file not found: {path}")
         return jsonify({"error": "File not found"}), 404
 
+@bp.route('/chat/history', methods=['GET'])
+def get_chat_history():
+    """
+    GET /chat/history
+    Retrieves chat history for the authenticated user.
+    """
+    try:
+        # Get current user ID (will use DEFAULT_USER_ID if no auth)
+        try:
+            current_user_id = get_current_user_id()
+        except Exception as auth_error:
+            logger.warning(f"Auth error in get_chat_history: {auth_error}")
+            # Fallback to default user for development
+            current_user_id = config.DEFAULT_USER_ID
+        
+        limit = request.args.get('limit', 50, type=int)
+        
+        logger.info(f"Fetching chat history for user: {current_user_id}, limit: {limit}")
+        
+        # Fetch messages from Supabase
+        result = current_app.supabase.table('messages').select('*').eq(
+            'user_id', current_user_id
+        ).order('created_at', desc=True).limit(limit).execute()
+        
+        messages = result.data if result.data else []
+        
+        logger.info(f"Found {len(messages)} messages for user {current_user_id}")
+        
+        # Reverse to chronological order (oldest first) for the frontend
+        messages.reverse()
+        
+        return jsonify({"messages": messages}), 200
+    except Exception as e:
+        logger.error(f"GET /chat/history - Error: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch chat history", "details": str(e)}), 500
+
 @bp.route('/chat', methods=['POST'])
 def chat():
     """
@@ -119,7 +155,8 @@ def chat():
             
             # Store the message with emotion data in database
             try:
-                current_app.supabase.table('messages').insert({
+                print(f"DEBUG: Attempting to insert USER message for user_id={current_user_id}")
+                user_msg_data = {
                     'user_id': current_user_id,
                     'role': 'user',
                     'content': user_message,
@@ -128,16 +165,23 @@ def chat():
                     'sentiment_score': emotion_data.get('sentiment_score'),
                     'intensity': emotion_data.get('intensity'),
                     'created_at': datetime.utcnow().isoformat()
-                }).execute()
+                }
+                res = current_app.supabase.table('messages').insert(user_msg_data).execute()
+                print(f"DEBUG: User message insert result: {res}")
                 
                 # Store assistant reply too
-                current_app.supabase.table('messages').insert({
+                print(f"DEBUG: Attempting to insert ASSISTANT message for user_id={current_user_id}")
+                assistant_msg_data = {
                     'user_id': current_user_id,
                     'role': 'assistant',
                     'content': reply,
                     'created_at': datetime.utcnow().isoformat()
-                }).execute()
+                }
+                res = current_app.supabase.table('messages').insert(assistant_msg_data).execute()
+                print(f"DEBUG: Assistant message insert result: {res}")
+
             except Exception as e:
+                print(f"ERROR: Failed to store messages in Supabase: {e}")
                 logger.error(f"Failed to store messages: {e}")
                 
         except Exception as e:

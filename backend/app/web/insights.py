@@ -57,18 +57,15 @@ def check_recap_status():
         return jsonify({"error": f"Failed to check recap status: {str(e)}"}), 500
 
 @bp.route('/recap/latest', methods=['GET'])
-@require_auth
 def get_latest_recap():
     """
     GET /insights/recap/latest
     Get the latest 3-day emotional recap for the user.
     """
     try:
-        user = getattr(request, 'current_user', None)
-        if not user:
-            return jsonify({"error": "Unauthorized"}), 401
+        from ..security import get_current_user_id
+        user_id = get_current_user_id()
         
-        user_id = user.get('id')
         supabase = current_app.supabase
         
         # Get the latest recap
@@ -166,3 +163,38 @@ def generate_recap():
     except Exception as e:
         logger.error(f"POST /insights/recap/generate error: {e}", exc_info=True)
         return jsonify({"error": f"Failed to generate recap: {str(e)}"}), 500
+
+@bp.route('/memory-graph', methods=['GET'])
+@require_auth
+def get_memory_graph():
+    """
+    GET /insights/memory-graph
+    Get the user's memory graph (recurring topics and snippets).
+    """
+    try:
+        user = getattr(request, 'current_user', None)
+        if not user:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        user_id = user.get('id')
+        supabase = current_app.supabase
+        emotion_service = get_emotion_service()
+        
+        # Fetch all user messages (limit to last 1000 for performance)
+        result = supabase.table('messages').select('*').eq(
+            'user_id', user_id
+        ).order('created_at', desc=True).limit(1000).execute()
+        
+        if not result.data:
+            return jsonify({"memories": []}), 200
+            
+        # Generate memory graph
+        # Reverse to chronological order for analysis
+        messages = result.data[::-1]
+        memory_data = emotion_service.get_memory_graph(messages, user_id)
+        
+        return jsonify(memory_data), 200
+        
+    except Exception as e:
+        logger.error(f"GET /insights/memory-graph error: {e}", exc_info=True)
+        return jsonify({"error": "Failed to get memory graph"}), 500

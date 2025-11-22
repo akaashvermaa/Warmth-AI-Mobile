@@ -23,14 +23,33 @@ def log_mood():
             return error_response, status_code
 
         score = data.get('score')
+        label = data.get('label', 'Neutral')
+        topic = data.get('topic', 'General')
+        
         if score is None:
             return jsonify({"error": "Missing score"}), 400
 
-        # For now, return success without actual storage
-        # TODO: Implement actual mood storage in Supabase
-        logger.info(f"Mood logged: {score}")
-
-        return jsonify({"success": True, "message": "Mood logged successfully"}), 200
+        # Get current user ID
+        from ..security import get_current_user_id
+        user_id = get_current_user_id()
+        
+        # Insert into Supabase
+        payload = {
+            'user_id': user_id,
+            'score': float(score),
+            'label': label,
+            'topic': topic,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        result = current_app.supabase.table('mood_logs').insert(payload).execute()
+        
+        if result.data:
+            logger.info(f"Mood logged: {score} for user {user_id}")
+            return jsonify({"success": True, "message": "Mood logged successfully", "entry": result.data[0]}), 201
+        else:
+            logger.error("Supabase insert returned no data")
+            return jsonify({"error": "Failed to save mood"}), 500
 
     except Exception as e:
         logger.error(f"POST /mood - 500 Internal Server Error: {e}", exc_info=True)

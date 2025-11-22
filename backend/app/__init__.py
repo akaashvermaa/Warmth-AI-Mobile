@@ -30,8 +30,12 @@ cors = CORS()
 logger = logging.getLogger(__name__)
 
 try:
-    # Initialize Supabase client
-    supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+    # Initialize Supabase client with SERVICE ROLE KEY (bypasses RLS)
+    # This is required for backend operations that need to write to the database
+    supabase: Client = create_client(
+        config.SUPABASE_URL, 
+        config.SUPABASE_SERVICE_KEY  # ← Changed from SUPABASE_KEY to SUPABASE_SERVICE_KEY
+    )
 
     # Initialize services
     llm_service = LLMService()
@@ -79,6 +83,10 @@ def create_app():
     app.register_blueprint(mood.bp)
     app.register_blueprint(preferences.bp)
     app.register_blueprint(insights.bp)
+    
+    # Import and register export blueprint
+    from .web import export as export_module
+    app.register_blueprint(export_module.bp)
     
     # === Inject Services onto the App Object ===
     app.chat_service = chat_service

@@ -1,6 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -10,6 +9,14 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import InputBar from '../components/chat/InputBar';
 import MessageBubble from '../components/chat/MessageBubble';
 import TypingIndicator from '../components/chat/TypingIndicator';
@@ -21,38 +28,73 @@ export default function ChatScreen({ navigation }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [userId, setUserId] = useState(null);
   const flatListRef = useRef(null);
+  const insets = useSafeAreaInsets();
 
-  // Load user data and initialize
+  // Subtle breathing animation for header
+  const headerOpacity = useSharedValue(1);
+
+  useEffect(() => {
+    headerOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.85, { duration: 2500 }),
+        withTiming(1, { duration: 2500 })
+      ),
+      -1,
+      false
+    );
+  }, []);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+  }));
+
+  // Load chat history on mount
   useEffect(() => {
     initializeChat();
   }, []);
 
   const initializeChat = async () => {
     try {
-      // Get or create user ID
-      let storedUserId = await AsyncStorage.getItem('warmth_user_id');
-      if (!storedUserId) {
-        storedUserId = `user_${Date.now()}`;
-        await AsyncStorage.setItem('warmth_user_id', storedUserId);
-      }
-      setUserId(storedUserId);
+      // Fetch chat history (backend uses authenticated user from JWT token)
+      const historyResponse = await api.getChatHistory();
+      if (historyResponse.messages && historyResponse.messages.length > 0) {
+        const formattedMessages = historyResponse.messages.map(msg => ({
+          id: msg.id || `msg_${msg.created_at}`,
+          message: msg.content,
+          isUser: msg.role === 'user',
+          timestamp: msg.created_at,
+          emotions: msg.emotions || [],
+        }));
+        setMessages(formattedMessages);
 
-      // Add welcome message
+        // Scroll to bottom after loading history
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: false });
+        }, 100);
+      } else {
+        // Add welcome message if no history
+        setMessages([{
+          id: '1',
+          message: "Hi—welcome back. How are you feeling right now? I'm here to listen.",
+          isUser: false,
+          timestamp: new Date().toISOString(),
+        }]);
+      }
+    } catch (error) {
+      console.warn('Failed to load history:', error);
+      // Fallback to welcome message
       setMessages([{
         id: '1',
-        message: "Hello! I'm Warmth, your AI companion. How are you feeling today?",
+        message: "Hi—welcome back. How are you feeling right now? I'm here to listen.",
         isUser: false,
         timestamp: new Date().toISOString(),
       }]);
-    } catch (error) {
-      console.error('Error initializing chat:', error);
     }
   };
 
   const sendMessage = async () => {
-    if (inputText.trim() === '' || isLoading || !userId) return;
+    if (inputText.trim() === '' || isLoading) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -72,13 +114,14 @@ export default function ChatScreen({ navigation }) {
     }, 100);
 
     try {
-      // Call API
-      const response = await api.sendMessage(userMessage.message, userId, false);
+      // Call API (backend uses authenticated user from JWT token)
+      // Note: We still pass null for userId since backend ignores it
+      const response = await api.sendMessage(userMessage.message, null, false);
 
       // Add AI response with emotions
       const aiMessage = {
         id: (Date.now() + 1).toString(),
-        message: response.response || response.message,
+        message: response.reply || response.response || response.message,
         isUser: false,
         timestamp: new Date().toISOString(),
         emotions: response.emotions || [],
@@ -106,20 +149,22 @@ export default function ChatScreen({ navigation }) {
     }
   };
 
-  const renderMessage = ({ item }) => (
+  // Memoize render function for better performance
+  const renderMessage = useCallback(({ item }) => (
     <MessageBubble
       message={item.message}
       isUser={item.isUser}
       timestamp={item.timestamp}
       emotions={item.emotions}
     />
-  );
+  ), []);
 
-  const getItemLayout = (data, index) => ({
-    length: 80, // Approximate height
+  // Optimize getItemLayout for better scrolling performance
+  const getItemLayout = useCallback((data, index) => ({
+    length: 80,
     offset: 80 * index,
     index,
-  });
+  }), []);
 
   return (
     <LinearGradient
@@ -127,10 +172,22 @@ export default function ChatScreen({ navigation }) {
       style={styles.container}
     >
       <SafeAreaView style={styles.safeArea}>
-        {/* Ultra-Minimal Header with Top-Right Icons */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Warmth AI</Text>
+        {/* Notch-Safe Header with subtle animation */}
+        <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? theme.spacing.xl : insets.top + 8 }]}>
+          <Animated.View style={headerAnimatedStyle}>
+            <Text style={styles.headerTitle}>Warmth</Text>
+            <Text style={styles.headerQuote}>A safe space for your thoughts</Text>
+          </Animated.View>
           <TopRightIcons />
+        </View>
+
+        {/* Date + Time Pill */}
+        <View style={styles.datePillContainer}>
+          <View style={styles.datePill}>
+            <Text style={styles.dateText}>
+              Today · {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
         </View>
 
         {/* Chat Messages */}
@@ -149,8 +206,13 @@ export default function ChatScreen({ navigation }) {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             windowSize={5}
             maxToRenderPerBatch={10}
-            removeClippedSubviews={Platform.OS === 'android'}
+            initialNumToRender={10}
+            removeClippedSubviews={true}
             getItemLayout={getItemLayout}
+            updateCellsBatchingPeriod={50}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+            }}
           />
 
           {/* Typing Indicator */}
@@ -180,21 +242,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderLight,
+    paddingHorizontal: 20,
+    paddingBottom: theme.spacing.md,
+    zIndex: 10,
   },
   headerTitle: {
-    ...theme.typography.heading,
-    fontSize: 20,
-    color: theme.colors.text,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 26,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    letterSpacing: -0.5,
+  },
+  headerQuote: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: theme.colors.secondary,
+    marginTop: 3,
+    opacity: 0.8,
+    letterSpacing: 0.2,
+  },
+  datePillContainer: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+    marginTop: 8,
+  },
+  datePill: {
+    backgroundColor: 'rgba(255, 245, 239, 0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  dateText: {
+    fontFamily: theme.typography.caption.fontFamily,
+    fontSize: 12,
+    color: theme.colors.secondary,
+    fontWeight: '500',
   },
   chatContainer: {
     flex: 1,
   },
   messagesList: {
-    paddingVertical: theme.spacing.md,
+    paddingHorizontal: 16,
+    paddingBottom: theme.spacing.xl,
     flexGrow: 1,
   },
 });

@@ -215,6 +215,112 @@ Respond ONLY with valid JSON."""
             'fallback': True
         }
 
+    def get_memory_graph(self, messages: List[Dict], user_id: str) -> Dict:
+        """
+        Generate a memory graph (recurring topics) from user messages.
+        
+        Args:
+            messages: List of all user messages
+            user_id: User ID
+            
+        Returns:
+            Dict with recurring topics and snippets
+        """
+        if not self.client or not messages:
+            return self._get_fallback_memory_graph()
+            
+        try:
+            # Extract user messages and topics
+            user_messages = []
+            all_topics = []
+            
+            for msg in messages:
+                if msg.get('role') == 'user':
+                    user_messages.append(msg.get('content', ''))
+                    if msg.get('topics'):
+                        all_topics.extend(msg['topics'])
+            
+            if not user_messages:
+                return self._get_fallback_memory_graph()
+                
+            # Calculate topic frequency
+            topic_counts = {}
+            for topic in all_topics:
+                topic_counts[topic] = topic_counts.get(topic, 0) + 1
+                
+            # Get top 5 recurring topics
+            sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_topics = [t[0] for t in sorted_topics]
+            
+            if not top_topics:
+                return self._get_fallback_memory_graph()
+
+            # Create prompt to find snippets for these topics
+            prompt = f"""Analyze these user messages and find a representative short snippet (max 10 words) for each recurring topic.
+
+User messages:
+{chr(10).join(user_messages[-50:])}  # Analyze last 50 messages
+
+Recurring topics: {', '.join(top_topics)}
+
+For each topic, find one short quote or summary snippet from the user's messages that best represents their feelings about that topic.
+
+Respond ONLY with a JSON array of objects:
+[
+  {{ "topic": "Work", "count": 5, "snippet": "Feeling overwhelmed by deadlines" }},
+  ...
+]
+Use the exact topic names provided.
+"""
+
+            # Call OpenAI API
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an insightful memory assistant. Extract meaningful snippets."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=300,
+                response_format={"type": "json_object"}
+            )
+            
+            # Parse response
+            result = json.loads(response.choices[0].message.content)
+            memories = result.get('memories', [])
+            
+            # If the model didn't return 'memories' key directly, try to parse the list
+            if not memories and isinstance(result, list):
+                memories = result
+            elif not memories and 'topics' in result:
+                memories = result['topics']
+                
+            # Merge with counts
+            final_memories = []
+            for m in memories:
+                topic_name = m.get('topic')
+                if topic_name in topic_counts:
+                    m['count'] = topic_counts[topic_name]
+                    m['id'] = len(final_memories) + 1
+                    final_memories.append(m)
+            
+            return {
+                'memories': final_memories,
+                'generated_at': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Memory graph generation failed: {e}", exc_info=True)
+            return self._get_fallback_memory_graph()
+
+    def _get_fallback_memory_graph(self) -> Dict:
+        """Return fallback memory graph."""
+        return {
+            'memories': [],
+            'generated_at': datetime.utcnow().isoformat(),
+            'fallback': True
+        }
+
 # Singleton instance
 _emotion_service = None
 
