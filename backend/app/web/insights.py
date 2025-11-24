@@ -57,14 +57,15 @@ def check_recap_status():
         return jsonify({"error": f"Failed to check recap status: {str(e)}"}), 500
 
 @bp.route('/recap/latest', methods=['GET'])
+@require_auth
 def get_latest_recap():
     """
     GET /insights/recap/latest
     Get the latest 3-day emotional recap for the user.
     """
     try:
-        from ..security import get_current_user_id
-        user_id = get_current_user_id()
+        # Get current user ID from request context (set by @require_auth)
+        user_id = request.current_user['id']
         
         supabase = current_app.supabase
         

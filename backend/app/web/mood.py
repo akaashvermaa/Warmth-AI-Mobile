@@ -5,16 +5,14 @@ from flask import Blueprint, jsonify, request, Response, current_app
 from datetime import datetime
 
 from ..security import csrf_protect, require_auth, encrypt_data, decrypt_data
-from ..config import DEFAULT_USER_ID
 from .validation import validate_json_request
 
-# === THE FIX: Remove the url_prefix here ===
 bp = Blueprint('mood', __name__)
 logger = logging.getLogger(__name__)
 
 # === Add missing mood endpoints ===
 @bp.route('/mood', methods=['POST'])
-
+@require_auth
 def log_mood():
     """ POST /mood - Logs a mood entry. """
     try:
@@ -29,9 +27,8 @@ def log_mood():
         if score is None:
             return jsonify({"error": "Missing score"}), 400
 
-        # Get current user ID
-        from ..security import get_current_user_id
-        user_id = get_current_user_id()
+        # Get current user ID from request context (set by @require_auth)
+        user_id = request.current_user['id']
         
         # Insert into Supabase
         payload = {
@@ -56,7 +53,7 @@ def log_mood():
         return jsonify({"error": "Failed to log mood"}), 500
 
 @bp.route('/mood/history', methods=['GET'])
-
+@require_auth
 def get_mood_history_endpoint():
     """ GET /mood/history - Retrieves mood history. """
     try:
@@ -74,22 +71,24 @@ def get_mood_history_endpoint():
 
 # === Updated: Use ChatService for mood history ===
 @bp.route('/mood-history', methods=['GET'])
-
+@require_auth
 def get_mood_history():
     """ GET /mood-history - Retrieves mood history and advice. """
     try:
-        # Direct Supabase query approach
-        from supabase import create_client
-        from datetime import datetime, timedelta
-        from ..config import SUPABASE_URL, SUPABASE_KEY
-
-        # Create Supabase client
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        # Use global Supabase client
+        supabase = current_app.supabase
+        
+        # Get current user ID
+        user_id = request.current_user['id']
+        logger.info(f"Fetching mood history for user_id: {user_id}")
 
         # Get mood history from last 7 days
         cutoff_date = (datetime.utcnow() - timedelta(days=7)).isoformat()
-        result = supabase.table('mood_logs').select('*').eq('user_id', DEFAULT_USER_ID).gte('timestamp', cutoff_date).order('timestamp', desc=True).execute()
+        result = supabase.table('mood_logs').select('*').eq('user_id', user_id).gte('timestamp', cutoff_date).order('timestamp', desc=True).execute()
         history = result.data if result.data else []
+        
+        logger.info(f"Found {len(history)} mood entries for user {user_id}")
+
         # Simple advice based on mood history
         advice = "Keep tracking your mood to see patterns and get personalized advice."
         if history:
@@ -104,7 +103,6 @@ def get_mood_history():
                 else:
                     advice = "Your mood has been balanced. Continue expressing yourself freely."
 
-        logger.info(f"Retrieved {len(history)} mood entries for user {DEFAULT_USER_ID}")
         return jsonify({
             "history": history or [],
             "advice": advice
@@ -118,13 +116,20 @@ def get_mood_history():
         }), 200
 
 @bp.route('/api/journal', methods=['GET'])
-
+@require_auth
 def get_journal():
     """ GET /api/journal - Retrieves combined memories and mood logs sorted by timestamp. """
     try:
-        # Get memories and mood logs from the repository
-        memories = current_app.memory_repo.get_all_memories(DEFAULT_USER_ID)
-        mood_history = current_app.memory_repo.get_mood_history(DEFAULT_USER_ID)
+        user_id = request.current_user['id']
+        supabase = current_app.supabase
+        
+        # Get memories
+        memories_result = supabase.table('memories').select('*').eq('user_id', user_id).execute()
+        memories = memories_result.data if memories_result.data else []
+        
+        # Get mood logs
+        mood_result = supabase.table('mood_logs').select('*').eq('user_id', user_id).execute()
+        mood_history = mood_result.data if mood_result.data else []
 
         # Create combined journal entries
         journal_entries = []
@@ -142,23 +147,15 @@ def get_journal():
 
         # Process mood logs
         for mood in mood_history:
-            if isinstance(mood, list) and len(mood) >= 2:
-                # mood format: [timestamp, score, count, label, topic]
-                timestamp = mood[0]
-                score = mood[1]
-                count = mood[2] if len(mood) > 2 else 1
-                label = mood[3] if len(mood) > 3 else 'Neutral'
-                topic = mood[4] if len(mood) > 4 else None
-
-                journal_entries.append({
-                    'id': f"mood_{timestamp}",  # Create unique ID for mood entries
-                    'type': 'mood',
-                    'score': score,
-                    'label': label,
-                    'topic': topic,
-                    'timestamp': timestamp,
-                    'count': count
-                })
+            journal_entries.append({
+                'id': f"mood_{mood['id']}",
+                'type': 'mood',
+                'score': mood['score'],
+                'label': mood.get('label', 'Neutral'),
+                'topic': mood.get('topic'),
+                'timestamp': mood['timestamp'],
+                'count': 1
+            })
 
         # Sort all entries by timestamp (descending - newest first)
         journal_entries.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -171,17 +168,25 @@ def get_journal():
         logger.error(f"GET /api/journal - 500 Internal Server Error: {e}", exc_info=True)
         raise
 
-# === THE FIX: Add the full path directly to the route ===
 @bp.route('/export/mood-history', methods=['GET'])
-
+@require_auth
 def export_mood_history():
     """ GET /export/mood-history - Exports mood history as encrypted JSON. """
     try:
         password = request.args.get('password', None)
+        user_id = request.current_user['id']
         
         def _export_task():
-            history = current_app.memory_repo.get_mood_history(DEFAULT_USER_ID)
-            memories = current_app.memory_repo.get_all_memories(DEFAULT_USER_ID)
+            supabase = current_app.supabase
+            
+            # Get mood history
+            mood_result = supabase.table('mood_logs').select('*').eq('user_id', user_id).execute()
+            history = mood_result.data if mood_result.data else []
+            
+            # Get memories
+            memories_result = supabase.table('memories').select('*').eq('user_id', user_id).execute()
+            memories = memories_result.data if memories_result.data else []
+            
             export_data = {
                 "mood_history": history,
                 "memories": memories,
@@ -204,17 +209,15 @@ def export_mood_history():
                 'X-Password-Required': 'true' if password else 'false'
             }
         )
-        logger.info("Mood history exported (encrypted)")
+        logger.info(f"Mood history exported (encrypted) for user {user_id}")
         return response, 200
         
     except Exception as e:
         logger.error(f"Export error: {e}", exc_info=True)
         return jsonify({"error": "Export failed"}), 500
 
-# === THE FIX: Add the full path directly to the route ===
 @bp.route('/export/mood-history/decrypt', methods=['POST'])
-
-
+@require_auth
 def decrypt_export():
     """ POST /export/mood-history/decrypt - Decrypts exported data. """
     try:

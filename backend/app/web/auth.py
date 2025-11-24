@@ -78,6 +78,19 @@ def signup():
         if result and hasattr(result, 'user'):
             logger.info(f"User registered successfully: {email}")
             
+            # Insert user into users table for foreign key relationships
+            try:
+                supabase.table('users').insert({
+                    'id': result.user.id,
+                    'email': result.user.email,
+                    'full_name': full_name,
+                    'created_at': 'now()'
+                }).execute()
+                logger.info(f"User record created in users table: {result.user.id}")
+            except Exception as db_error:
+                logger.warning(f"Failed to create user record in users table: {db_error}")
+                # Continue anyway - the auth user is created
+            
             # Build response
             response_data = {
                 "status": "success",
@@ -163,6 +176,58 @@ def signin():
             return jsonify({"error": "Please verify your email address"}), 401
 
         return jsonify({"error": "Sign in failed"}), 500
+
+@bp.route('/google', methods=['POST'])
+def google_auth():
+    """
+    POST /auth/google
+    Authenticate user with Google ID token
+    """
+    try:
+        data = request.get_json()
+        if not data or not data.get('token'):
+            return jsonify({"error": "Token is required"}), 400
+
+        token = data.get('token')
+        supabase: Client = current_app.supabase
+
+        # Exchange Google ID token for Supabase session
+        result = supabase.auth.sign_in_with_id_token({
+            "provider": "google",
+            "token": token
+        })
+
+        if result and hasattr(result, 'user') and hasattr(result, 'session'):
+            user = result.user
+            logger.info(f"User signed in with Google: {user.email}")
+            
+            # Ensure user exists in our users table
+            try:
+                supabase.table('users').upsert({
+                    'id': user.id,
+                    'email': user.email,
+                    'full_name': user.user_metadata.get('full_name', user.user_metadata.get('name', '')),
+                    'created_at': 'now()'
+                }).execute()
+            except Exception as db_error:
+                logger.warning(f"Failed to upsert user record: {db_error}")
+
+            return jsonify({
+                "status": "success",
+                "message": "Signed in successfully",
+                "access_token": result.session.access_token,
+                "refresh_token": result.session.refresh_token,
+                "user_id": user.id,
+                "email": user.email,
+                "full_name": user.user_metadata.get('full_name', ''),
+                "expires_in": result.session.expires_in
+            }), 200
+        else:
+            return jsonify({"error": "Invalid Google token"}), 401
+
+    except Exception as e:
+        logger.error(f"Google auth error: {e}", exc_info=True)
+        return jsonify({"error": "Google authentication failed"}), 500
 
 @bp.route('/refresh', methods=['POST'])
 def refresh_token():
@@ -255,6 +320,15 @@ def get_user():
         logger.error(f"Get user error: {e}", exc_info=True)
         return jsonify({"error": "Failed to get user information"}), 401
 
+@bp.route('/profile', methods=['GET'])
+@require_auth
+def get_profile():
+    """
+    GET /auth/profile
+    Alias for /auth/user - Get current user profile
+    """
+    return get_user()
+
 @bp.route('/dev-user', methods=['POST'])
 def create_dev_user():
     """
@@ -277,29 +351,54 @@ def create_dev_user():
         if not data:
             return jsonify({"error": "Invalid JSON"}), 400
 
-        user_id = data.get('user_id', 'dev_user')
-        display_name = data.get('display_name', user_id)
-        dev_email = f"dev_{user_id}@warmth.local"
-        dev_password = "dev_user_password_123"
+        user_id_input = data.get('user_id', 'dev_user')
+        display_name = data.get('display_name', user_id_input)
+        
+        # Generate a deterministic UUID based on the input user_id
+        import uuid
+        import hashlib
+        
+        # Create a deterministic UUID from the user_id string
+        hash_obj = hashlib.md5(user_id_input.encode())
+        mock_user_id = str(uuid.UUID(hash_obj.hexdigest()))
+        
+        dev_email = f"{user_id_input}@warmth.local"
 
         supabase: Client = current_app.supabase
 
-        # For development, create a mock user without going through Supabase auth
-        # This avoids email confirmation issues and spam
-        import uuid
-        mock_user_id = str(uuid.uuid4())
+        logger.info(f"Processing development user: {user_id_input} -> {mock_user_id}")
 
-        logger.info(f"Creating mock development user: {user_id} -> {mock_user_id}")
+        # Ensure user exists in the users table
+        try:
+            # Check if user exists
+            existing = supabase.table('users').select('id').eq('id', mock_user_id).execute()
+            
+            if not existing.data:
+                # Insert new dev user
+                supabase.table('users').insert({
+                    'id': mock_user_id,
+                    'email': dev_email,
+                    'full_name': display_name,
+                    'created_at': 'now()'
+                }).execute()
+                logger.info(f"Created new dev user in DB: {mock_user_id}")
+            else:
+                logger.info(f"Dev user already exists in DB: {mock_user_id}")
+                
+        except Exception as db_error:
+            logger.error(f"Database error for dev user: {db_error}")
+            # Continue anyway, maybe it exists or there's another issue
+            # But this is likely why FK constraints fail
 
-        # Create a mock JWT token for development (in production, use real Supabase)
+        # Create a mock JWT token for development
         import time
         import jwt as pyjwt
 
-        # Create a simple mock token (this is just for testing)
+        # Create a simple mock token
         mock_payload = {
-            'exp': int(time.time() + 3600),  # 1 hour expiry - convert to int
+            'exp': int(time.time() + 3600 * 24),  # 24 hours expiry
             'sub': mock_user_id,
-            'email': f'dev.{user_id}@warmth.dev',
+            'email': dev_email,
             'aud': 'authenticated',
             'role': 'authenticated',
             'app_metadata': {
@@ -308,7 +407,7 @@ def create_dev_user():
             },
             'user_metadata': {
                 'display_name': display_name,
-                'original_user_id': user_id,
+                'original_user_id': user_id_input,
                 'is_development_user': True
             }
         }
@@ -319,13 +418,13 @@ def create_dev_user():
 
         return jsonify({
             "status": "mock_created",
-            "message": "Mock development user created for testing",
+            "message": "Development user ready",
             "user_id": mock_user_id,
-            "email": f'dev.{user_id}@warmth.dev',
+            "email": dev_email,
             "access_token": mock_token,
             "refresh_token": "mock_refresh_token",
             "display_name": display_name,
-            "original_user_id": user_id,
+            "original_user_id": user_id_input,
             "is_mock": True
         }), 201
 

@@ -4,19 +4,20 @@ Export/Import endpoints for user data
 """
 import logging
 from flask import Blueprint, request, jsonify, current_app
-from ..security import get_current_user_id
+from ..security import require_auth
 
 bp = Blueprint('export', __name__)
 logger = logging.getLogger(__name__)
 
 @bp.route('/export-all', methods=['GET'])
+@require_auth
 def export_all_data():
     """
     GET /export-all
     Exports all user data (messages, memories, mood logs, etc.)
     """
     try:
-        current_user_id = get_current_user_id()
+        current_user_id = request.current_user['id']
         logger.info(f"Exporting all data for user: {current_user_id}")
         
         supabase = current_app.supabase
@@ -65,6 +66,7 @@ def export_all_data():
         return jsonify({"error": "Failed to export data"}), 500
 
 @bp.route('/erase-all', methods=['POST'])
+@require_auth
 def erase_all_data():
     """
     POST /erase-all
@@ -72,7 +74,7 @@ def erase_all_data():
     WARNING: This is irreversible!
     """
     try:
-        current_user_id = get_current_user_id()
+        current_user_id = request.current_user['id']
         logger.warning(f"ERASING ALL DATA for user: {current_user_id}")
         
         supabase = current_app.supabase

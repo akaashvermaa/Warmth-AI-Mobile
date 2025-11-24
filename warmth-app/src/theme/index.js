@@ -4,10 +4,10 @@ import { Platform } from 'react-native';
 
 // Color Palette - Refined & Softer
 export const colors = {
-    // Softer background gradient (reduced saturation)
-    background: '#FFF6F2',
-    backgroundGradient: ['#FFF6F2', '#FFF0F6', '#FFF9E9'], // Gentler transitions
-    headerGradient: ['#FFE6D1', '#FFDCEB'],
+    // Softer background gradient (Strictly Pink/Rose/Peach - NO YELLOW)
+    background: '#FFF0F5',
+    backgroundGradient: ['#FFF0F5', '#FFE4E1', '#FFDAB9'], // Lavender Blush -> Misty Rose -> Peach Puff
+    headerGradient: ['#FFB7B2', '#FF9E9E'], // Rose -> Salmon
 
     // Surface
     surface: '#FFFFFF',

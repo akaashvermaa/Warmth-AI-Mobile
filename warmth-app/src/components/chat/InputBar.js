@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-    KeyboardAvoidingView,
     Platform,
     StyleSheet,
     TextInput,
     TouchableOpacity,
+    View,
 } from 'react-native';
 import Animated, {
     useAnimatedStyle,
@@ -46,11 +46,7 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
     const showSendButton = value && value.trim().length > 0;
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-            style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}
-        >
+        <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}>
             <LinearGradient
                 colors={theme.colors.inputGradient}
                 start={{ x: 0, y: 0 }}
@@ -89,7 +85,7 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
                     )}
                 </BlurView>
             </LinearGradient>
-        </KeyboardAvoidingView>
+        </View>
     );
 };
 

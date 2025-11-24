@@ -1,4 +1,4 @@
-// API Service for Warmth Backend
+﻿// API Service for Warmth Backend
 import ENV from '../config/env';
 
 class WarmthAPI {
@@ -104,14 +104,21 @@ class WarmthAPI {
       method: 'POST',
     });
   }
-
   // Emotion Analysis & Insights endpoints
   async checkRecapStatus() {
     return this.request('/insights/recap/check');
   }
 
   async getLatestRecap() {
-    return this.request('/insights/recap/latest');
+    try {
+      return await this.request('/insights/recap/latest');
+    } catch (e) {
+      if (e.message && (e.message.includes('404') || e.message.includes('NOT FOUND'))) {
+        console.warn('Recap endpoint not found – returning empty payload');
+        return { recap: null };
+      }
+      throw e;
+    }
   }
 
   async getMemoryGraph() {
@@ -236,6 +243,26 @@ class WarmthAPI {
       console.warn('Server signout failed:', error);
     }
     this.clearAuthToken();
+  }
+
+  async refreshToken(refreshToken) {
+    try {
+      const response = await this.request('/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (response.access_token) {
+        this.setAuthToken(response.access_token);
+      }
+      return response;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
+    }
+  }
+
+  async getUserProfile() {
+    return this.request('/auth/user');
   }
 }
 

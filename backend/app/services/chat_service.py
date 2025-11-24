@@ -439,7 +439,17 @@ Be conservative - only save clear, specific, and important facts."""
         try:
             # Try to parse as JSON first
             try:
-                parsed = json.loads(llm_response)
+                # Strip markdown code blocks if present
+                clean_reply = llm_response.strip()
+                if clean_reply.startswith('```json'):
+                    clean_reply = clean_reply[7:]
+                elif clean_reply.startswith('```'):
+                    clean_reply = clean_reply[3:]
+                if clean_reply.endswith('```'):
+                    clean_reply = clean_reply[:-3]
+                clean_reply = clean_reply.strip()
+
+                parsed = json.loads(clean_reply)
                 if isinstance(parsed, dict) and parsed.get('tool_call') == 'save_memory':
                     args = parsed.get('args', {})
                     key = args.get('key', '').strip()
@@ -590,9 +600,20 @@ User message: """ + user_input
 
             # Process the extraction
             memories_saved = []
-            if llm_reply.strip().startswith('{') and llm_reply.strip().endswith('}'):
+            
+            # Strip markdown code blocks if present
+            clean_reply = llm_reply.strip()
+            if clean_reply.startswith('```json'):
+                clean_reply = clean_reply[7:]
+            elif clean_reply.startswith('```'):
+                clean_reply = clean_reply[3:]
+            if clean_reply.endswith('```'):
+                clean_reply = clean_reply[:-3]
+            clean_reply = clean_reply.strip()
+
+            if clean_reply.startswith('{') and clean_reply.endswith('}'):
                 try:
-                    parsed = json.loads(llm_reply)
+                    parsed = json.loads(clean_reply)
                     if isinstance(parsed, dict) and parsed.get('tool_call') == 'save_memory':
                         args = parsed.get('args', {})
                         key = args.get('key', '').strip()
@@ -777,7 +798,7 @@ User message: """ + user_input
         """Gets recent mood context using cached data."""
         try:
             # Try cache first
-            mood_context = self.mood_context_cache.get(self.get_current_user_id())
+            mood_context = self.mood_context_cache.get_mood_context(self.get_current_user_id())
             if mood_context:
                 return mood_context
 
@@ -813,7 +834,7 @@ User message: """ + user_input
                         mood_context += " (declining)"
 
             # Cache the result
-            self.mood_context_cache.set(self.get_current_user_id(), mood_context, ttl=300)  # 5 min cache
+            self.mood_context_cache.set_mood_context(self.get_current_user_id(), mood_context)
             return mood_context
 
         except Exception as e:
@@ -854,9 +875,12 @@ User message: """ + user_input
         """Gets relevant memories for LLM context using semantic search."""
         try:
             # Check cache first
-            cache_key = f"{self.get_current_user_id()}:{hash(user_input)}"
-            cached_memories = self.search_result_cache.get(cache_key)
+            # Check cache first
+            cached_memories = self.search_result_cache.get_search_results(self.get_current_user_id(), user_input, 5)
             if cached_memories:
+                # Format cached results
+                if isinstance(cached_memories, list):
+                    return ", ".join([f"{mem['key']}: {mem['value']}" for mem in cached_memories])
                 return cached_memories
 
             # Get all memories with embeddings
@@ -903,7 +927,7 @@ User message: """ + user_input
                 formatted = "No directly relevant memories."
 
             # Cache result
-            self.search_result_cache.set(cache_key, formatted, ttl=600)  # 10 min cache
+            self.search_result_cache.set_search_results(self.get_current_user_id(), user_input, 5, top_memories)
 
             return formatted
 

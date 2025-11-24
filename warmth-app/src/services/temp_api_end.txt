@@ -1,0 +1,32 @@
+﻿  async signOut() {
+    try {
+      await this.request('/auth/signout', { method: 'POST' });
+    } catch (error) {
+      console.warn('Server signout failed:', error);
+    }
+    this.clearAuthToken();
+  }
+
+  async refreshToken(refreshToken) {
+    try {
+      const response = await this.request('/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (response.access_token) {
+        this.setAuthToken(response.access_token);
+      }
+      return response;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      throw error;
+    }
+  }
+
+  async getUserProfile() {
+    return this.request('/auth/user');
+  }
+}
+
+export default new WarmthAPI();

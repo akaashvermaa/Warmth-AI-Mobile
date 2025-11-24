@@ -72,19 +72,15 @@ def send_static(path):
         return jsonify({"error": "File not found"}), 404
 
 @bp.route('/chat/history', methods=['GET'])
+@require_auth
 def get_chat_history():
     """
     GET /chat/history
     Retrieves chat history for the authenticated user.
     """
     try:
-        # Get current user ID (will use DEFAULT_USER_ID if no auth)
-        try:
-            current_user_id = get_current_user_id()
-        except Exception as auth_error:
-            logger.warning(f"Auth error in get_chat_history: {auth_error}")
-            # Fallback to default user for development
-            current_user_id = config.DEFAULT_USER_ID
+        # Get current user ID from request context (set by @require_auth)
+        current_user_id = request.current_user['id']
         
         limit = request.args.get('limit', 50, type=int)
         
@@ -108,6 +104,7 @@ def get_chat_history():
         return jsonify({"error": "Failed to fetch chat history", "details": str(e)}), 500
 
 @bp.route('/chat', methods=['POST'])
+@require_auth
 def chat():
     """
     POST /chat
@@ -128,7 +125,7 @@ def chat():
         secure_log_message(user_message, "info")
 
         # Set user context in ChatService for authenticated user
-        current_user_id = get_current_user_id()
+        current_user_id = request.current_user['id']
         current_app.chat_service.set_user_context(current_user_id)
 
         # Use the injected chat_service
@@ -155,34 +152,48 @@ def chat():
             
             # Store the message with emotion data in database
             try:
-                print(f"DEBUG: Attempting to insert USER message for user_id={current_user_id}")
-                user_msg_data = {
-                    'user_id': current_user_id,
-                    'role': 'user',
-                    'content': user_message,
-                    'emotions': emotion_data.get('emotions'),
-                    'topics': emotion_data.get('topics'),
-                    'sentiment_score': emotion_data.get('sentiment_score'),
-                    'intensity': emotion_data.get('intensity'),
-                    'created_at': datetime.utcnow().isoformat()
-                }
-                res = current_app.supabase.table('messages').insert(user_msg_data).execute()
-                print(f"DEBUG: User message insert result: {res}")
+                # 1. Get or create a conversation for today (simple logic for now)
+                # In a real app, you might pass conversation_id from frontend
+                conversation_id = None
                 
-                # Store assistant reply too
-                print(f"DEBUG: Attempting to insert ASSISTANT message for user_id={current_user_id}")
-                assistant_msg_data = {
-                    'user_id': current_user_id,
-                    'role': 'assistant',
-                    'content': reply,
-                    'created_at': datetime.utcnow().isoformat()
-                }
-                res = current_app.supabase.table('messages').insert(assistant_msg_data).execute()
-                print(f"DEBUG: Assistant message insert result: {res}")
+                # Try to find recent conversation
+                try:
+                    recent_conv = current_app.supabase.table('conversations').select('id').eq('user_id', current_user_id).order('updated_at', desc=True).limit(1).execute()
+                    if recent_conv.data:
+                        conversation_id = recent_conv.data[0]['id']
+                except Exception:
+                    pass
+                
+                # Create new if none found
+                if not conversation_id:
+                    try:
+                        new_conv = current_app.supabase.rpc('create_conversation', {'p_title': 'New Conversation'}).execute()
+                        conversation_id = new_conv.data
+                    except Exception as e:
+                        logger.error(f"Failed to create conversation: {e}")
+
+                if conversation_id:
+                    # 2. Store USER message using RPC
+                    current_app.supabase.rpc('add_message', {
+                        'p_conversation_id': conversation_id,
+                        'p_role': 'user',
+                        'p_content': user_message,
+                        'p_emotions': emotion_data.get('emotions') if emotion_data else None,
+                        'p_topics': emotion_data.get('topics') if emotion_data else None,
+                        'p_sentiment_score': emotion_data.get('sentiment_score') if emotion_data else None
+                    }).execute()
+                    
+                    # 3. Store ASSISTANT message using RPC
+                    current_app.supabase.rpc('add_message', {
+                        'p_conversation_id': conversation_id,
+                        'p_role': 'assistant',
+                        'p_content': reply
+                    }).execute()
+                else:
+                    logger.warning("Could not store messages: No conversation ID available")
 
             except Exception as e:
-                print(f"ERROR: Failed to store messages in Supabase: {e}")
-                logger.error(f"Failed to store messages: {e}")
+                logger.error(f"Failed to store messages via RPC: {e}")
                 
         except Exception as e:
             logger.error(f"Emotion analysis failed: {e}", exc_info=True)
@@ -203,8 +214,7 @@ def chat():
 
 
 @bp.route('/chat/stream', methods=['POST'])
-
-
+@require_auth
 def chat_stream():
     """
     POST /chat/stream
@@ -229,7 +239,7 @@ def chat_stream():
     secure_log_message(user_message, "info")
 
     # Set user context in ChatService for authenticated user
-    current_user_id = get_current_user_id()
+    current_user_id = request.current_user['id']
     current_app.chat_service.set_user_context(current_user_id)
 
     # Pre-build messages and get chat_service reference outside generator

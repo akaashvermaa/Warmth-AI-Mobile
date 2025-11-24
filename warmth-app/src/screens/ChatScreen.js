@@ -55,42 +55,14 @@ export default function ChatScreen({ navigation }) {
   }, []);
 
   const initializeChat = async () => {
-    try {
-      // Fetch chat history (backend uses authenticated user from JWT token)
-      const historyResponse = await api.getChatHistory();
-      if (historyResponse.messages && historyResponse.messages.length > 0) {
-        const formattedMessages = historyResponse.messages.map(msg => ({
-          id: msg.id || `msg_${msg.created_at}`,
-          message: msg.content,
-          isUser: msg.role === 'user',
-          timestamp: msg.created_at,
-          emotions: msg.emotions || [],
-        }));
-        setMessages(formattedMessages);
-
-        // Scroll to bottom after loading history
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: false });
-        }, 100);
-      } else {
-        // Add welcome message if no history
-        setMessages([{
-          id: '1',
-          message: "Hi—welcome back. How are you feeling right now? I'm here to listen.",
-          isUser: false,
-          timestamp: new Date().toISOString(),
-        }]);
-      }
-    } catch (error) {
-      console.warn('Failed to load history:', error);
-      // Fallback to welcome message
-      setMessages([{
-        id: '1',
-        message: "Hi—welcome back. How are you feeling right now? I'm here to listen.",
-        isUser: false,
-        timestamp: new Date().toISOString(),
-      }]);
-    }
+    // Always start fresh - don't load chat history
+    // Only memories, moods, and insights are saved, not chat messages
+    setMessages([{
+      id: '1',
+      message: "Hi—welcome back. How are you feeling right now? I'm here to listen.",
+      isUser: false,
+      timestamp: new Date().toISOString(),
+    }]);
   };
 
   const sendMessage = async () => {
@@ -198,6 +170,7 @@ export default function ChatScreen({ navigation }) {
         >
           <FlatList
             ref={flatListRef}
+            style={{ flex: 1 }}
             data={messages}
             renderItem={renderMessage}
             keyExtractor={item => item.id}

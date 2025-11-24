@@ -6,6 +6,10 @@ import time
 from flask import Flask, jsonify
 from flask_cors import CORS
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # --- Core App Imports ---
 from . import config
 
@@ -82,7 +86,13 @@ def create_app():
     app.register_blueprint(memory.bp)
     app.register_blueprint(mood.bp)
     app.register_blueprint(preferences.bp)
+
     app.register_blueprint(insights.bp)
+    
+    # Register new blueprints
+    from .web import journals, settings
+    app.register_blueprint(journals.bp)
+    app.register_blueprint(settings.bp)
     
     # Import and register export blueprint
     from .web import export as export_module

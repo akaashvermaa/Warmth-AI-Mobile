@@ -66,6 +66,9 @@ const TopRightIcons = () => {
                 onPressOut={() => handlePressOut(settingsScale)}
                 onPress={() => navigation.navigate('Settings')}
                 activeOpacity={0.8}
+                accessibilityLabel="Settings"
+                accessibilityRole="button"
+                accessibilityHint="Navigate to settings screen"
             >
                 <Animated.View style={[styles.iconContainer, settingsAnimatedStyle]}>
                     <Animated.View style={[styles.glow, glowStyle, theme.shadows.icon]} />
@@ -81,6 +84,9 @@ const TopRightIcons = () => {
                 onPressOut={() => handlePressOut(journalsScale)}
                 onPress={() => navigation.navigate('Journals')}
                 activeOpacity={0.8}
+                accessibilityLabel="Journals"
+                accessibilityRole="button"
+                accessibilityHint="Navigate to journals screen"
             >
                 <Animated.View style={[styles.iconContainer, journalsAnimatedStyle]}>
                     <Animated.View style={[styles.glow, glowStyle, theme.shadows.icon]} />
@@ -131,7 +137,8 @@ const styles = StyleSheet.create({
         width: 28, // Reduced from 32
         height: 28, // Reduced from 32
         borderRadius: 14, // Reduced from 16
-        backgroundColor: theme.colors.iconGlow,
+        backgroundColor: theme.colors.primary,
+        opacity: 0.15,
     },
     icon: {
         width: 22, // Reduced from 24

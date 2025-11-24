@@ -38,26 +38,78 @@ export default function App() {
     checkAuth();
   }, []);
 
+  // Auto-refresh token every 50 minutes
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        const refreshToken = await AsyncStorage.getItem('refresh_token');
+        if (refreshToken) {
+          console.log('Auto-refreshing token...');
+          const response = await api.refreshToken(refreshToken);
+
+          if (response?.access_token) {
+            await AsyncStorage.setItem('auth_token', response.access_token);
+            if (response.refresh_token) {
+              await AsyncStorage.setItem('refresh_token', response.refresh_token);
+            }
+            api.setAuthToken(response.access_token);
+            console.log('Token refreshed successfully');
+          }
+        }
+      } catch (error) {
+        console.error('Auto token refresh failed:', error);
+        // Don't log out on refresh failure - token might still be valid
+      }
+    }, 50 * 60 * 1000); // Refresh every 50 minutes
+
+    return () => clearInterval(refreshInterval);
+  }, [isAuthenticated]);
+
   const checkAuth = async () => {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
         api.setAuthToken(token);
 
-        // Quick validation: try to fetch chat history
+        // Validate token by fetching user profile
         try {
-          await api.getChatHistory(1); // Just fetch 1 message to test
+          await api.getUserProfile();
           setIsAuthenticated(true);
         } catch (error) {
-          // Token is invalid, clear it
-          console.log('Token invalid, clearing...');
-          await AsyncStorage.removeItem('auth_token');
-          api.clearAuthToken();
-          setIsAuthenticated(false);
+          // Token is invalid, try to refresh
+          console.log('Token invalid, attempting refresh...');
+          const refreshToken = await AsyncStorage.getItem('refresh_token');
+
+          if (refreshToken) {
+            try {
+              const response = await api.refreshToken(refreshToken);
+              if (response?.access_token) {
+                await AsyncStorage.setItem('auth_token', response.access_token);
+                if (response.refresh_token) {
+                  await AsyncStorage.setItem('refresh_token', response.refresh_token);
+                }
+                api.setAuthToken(response.access_token);
+                setIsAuthenticated(true);
+                console.log('Token refreshed successfully');
+                return;
+              }
+            } catch (refreshError) {
+              console.error('Token refresh failed:', refreshError);
+            }
+          }
+
+          // Refresh failed or no refresh token, clear everything
+          await handleLogout();
         }
+      } else {
+        // No token found
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
@@ -79,14 +131,16 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      // Clear token from storage
-      await AsyncStorage.removeItem('auth_token');
+      // Clear all tokens from storage
+      await AsyncStorage.multiRemove(['auth_token', 'refresh_token']);
       // Clear token from API client
       api.clearAuthToken();
       // Update auth state
       setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
+      // Force logout anyway
+      setIsAuthenticated(false);
     }
   };
 
@@ -102,7 +156,7 @@ export default function App() {
       >
         {!isAuthenticated ? (
           <Stack.Screen name="Auth">
-            {props => <AuthScreen {...props} onLogin={() => setIsAuthenticated(true)} />}
+            {props => <AuthScreen {...props} onLogin={checkAuth} />}
           </Stack.Screen>
         ) : (
           <>

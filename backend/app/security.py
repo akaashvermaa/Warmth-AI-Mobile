@@ -31,19 +31,43 @@ def validate_supabase_jwt(token: str, supabase: Client) -> dict:
         dict: User information if valid, None if invalid
     """
     try:
-        # Use Supabase client to validate the JWT
-        user = supabase.auth.get_user(token)
+        # 1. Try Supabase client validation first
+        try:
+            user = supabase.auth.get_user(token)
+            if user and hasattr(user, 'user'):
+                return {
+                    'id': user.user.id,
+                    'email': user.user.email,
+                    'aud': user.user.aud,
+                    'role': user.user.role,
+                    'confirmed_at': str(user.user.confirmed_at) if user.user.confirmed_at else None
+                }
+        except Exception as supabase_error:
+            # Supabase validation failed, check if it's a mock token
+            pass
 
-        if user and hasattr(user, 'user'):
-            return {
-                'id': user.user.id,
-                'email': user.user.email,
-                'aud': user.user.aud,
-                'role': user.user.role,
-                'confirmed_at': str(user.user.confirmed_at) if user.user.confirmed_at else None
-            }
-        else:
-            return None
+        # 2. Fallback: Check if it's a valid Mock Dev Token
+        # (Only if Supabase validation failed)
+        try:
+            mock_secret = 'dev_secret_key_change_in_production'
+            payload = jwt.decode(token, mock_secret, algorithms=['HS256'])
+            
+            # Check if it's a dev token
+            if payload.get('app_metadata', {}).get('provider') == 'development':
+                logger.info(f"Valid mock token accepted for user: {payload.get('sub')}")
+                return {
+                    'id': payload.get('sub'),
+                    'email': payload.get('email'),
+                    'aud': payload.get('aud'),
+                    'role': payload.get('role'),
+                    'is_mock': True
+                }
+        except jwt.ExpiredSignatureError:
+            logger.warning("Mock token expired")
+        except jwt.InvalidTokenError:
+            pass # Not a valid mock token either
+
+        return None
 
     except Exception as e:
         logger.warning(f"JWT validation failed: {e}")

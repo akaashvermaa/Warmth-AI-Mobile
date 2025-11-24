@@ -1,12 +1,9 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useState } from 'react';
 import {
-    ActivityIndicator,
     Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StatusBar,
     StyleSheet,
     Text,
     TextInput,
@@ -14,8 +11,15 @@ import {
     View
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
+import Button from '../components/common/Button';
+import ScreenWrapper from '../components/common/ScreenWrapper';
 import api from '../services/api';
 import theme from '../theme';
+
+import { makeRedirectUri } from 'expo-auth-session';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const AuthScreen = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
@@ -24,6 +28,16 @@ const AuthScreen = ({ onLogin }) => {
     const [fullName, setFullName] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    // Create a redirect URI - this is critical for the mismatch error
+    const redirectUri = makeRedirectUri({
+        scheme: 'warmth'
+    });
+
+    console.log("---------------------------------------------------");
+    console.log("GOOGLE AUTH REDIRECT URI:", redirectUri);
+    console.log("Please add this URI to your Google Cloud Console > APIs & Services > Credentials > Web Client ID > Authorized redirect URIs");
+    console.log("---------------------------------------------------");
 
     const handleAuth = async () => {
         if (!email || !password || (!isLogin && !fullName)) {
@@ -41,10 +55,8 @@ const AuthScreen = ({ onLogin }) => {
                 response = await api.signIn(email, password);
             } else {
                 response = await api.signUp(email, password, fullName);
-                // Auto login after signup or show success message
-                if (!api.getAuthToken()) {
-                    // If signup didn't auto-login (e.g. email verification needed), 
-                    // switch to login and show message
+                // Check if signup returned a token (auto-login)
+                if (!response?.access_token) {
                     setIsLogin(true);
                     setError('Account created! Please sign in.');
                     setLoading(false);
@@ -56,9 +68,12 @@ const AuthScreen = ({ onLogin }) => {
             if (response?.access_token) {
                 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
                 await AsyncStorage.setItem('auth_token', response.access_token);
+
+                if (response.refresh_token) {
+                    await AsyncStorage.setItem('refresh_token', response.refresh_token);
+                }
             }
 
-            // Call the parent callback to update App state
             if (onLogin) {
                 onLogin();
             }
@@ -89,122 +104,147 @@ const AuthScreen = ({ onLogin }) => {
         }
     };
 
+    const [request, response, promptAsync] = Google.useAuthRequest({
+        // Using the provided Web Client ID for all platforms for now (works for Expo Go/Web)
+        androidClientId: '822449448774-sdn22et1o6pstrui46m060h472sbftn6.apps.googleusercontent.com',
+        iosClientId: '822449448774-eir2p1c7hh0gf0dmcjjv2svkt45ub8fr.apps.googleusercontent.com',
+        webClientId: '822449448774-eir2p1c7hh0gf0dmcjjv2svkt45ub8fr.apps.googleusercontent.com',
+        redirectUri: redirectUri
+    });
+
+    React.useEffect(() => {
+        if (response?.type === 'success') {
+            const { authentication } = response;
+            // Call backend with the ID token
+            handleGoogleAuth(authentication.accessToken);
+        }
+    }, [response]);
+
+    const handleGoogleAuth = async (token) => {
+        setLoading(true);
+        setError(null);
+        try {
+            // We need to implement this in api.js
+            const response = await api.signInWithGoogle(token);
+
+            if (response?.access_token) {
+                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+                await AsyncStorage.setItem('auth_token', response.access_token);
+                if (response.refresh_token) {
+                    await AsyncStorage.setItem('refresh_token', response.refresh_token);
+                }
+                if (onLogin) onLogin();
+            }
+        } catch (err) {
+            console.error('Google Auth error:', err);
+            setError('Google Sign In failed: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <LinearGradient colors={theme.colors.backgroundGradient} style={styles.container}>
-            <StatusBar barStyle="dark-content" />
-            <SafeAreaView style={styles.safeArea}>
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.keyboardView}
-                >
-                    <View style={styles.content}>
-                        {/* Header */}
-                        <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.header}>
-                            <Text style={styles.title}>Warmth</Text>
-                            <Text style={styles.subtitle}>
-                                {isLogin ? 'Welcome back' : 'Create your account'}
-                            </Text>
-                        </Animated.View>
+        <ScreenWrapper>
+            <View style={styles.content}>
+                {/* Header */}
+                <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.header}>
+                    <Text style={styles.title}>Warmth</Text>
+                    <Text style={styles.subtitle}>
+                        {isLogin ? 'Welcome back' : 'Create your account'}
+                    </Text>
+                </Animated.View>
 
-                        {/* Form */}
-                        <Animated.View entering={FadeInDown.delay(400).duration(600)} style={styles.form}>
-                            {!isLogin && (
-                                <View style={styles.inputContainer}>
-                                    <Text style={styles.label}>Full Name</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Your name"
-                                        placeholderTextColor={theme.colors.textSecondary}
-                                        value={fullName}
-                                        onChangeText={setFullName}
-                                        autoCapitalize="words"
-                                    />
-                                </View>
-                            )}
+                {/* Form */}
+                <Animated.View entering={FadeInDown.delay(400).duration(600)} style={styles.form}>
+                    {!isLogin && (
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Full Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Your name"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                value={fullName}
+                                onChangeText={setFullName}
+                                autoCapitalize="words"
+                                accessibilityLabel="Full name input"
+                            />
+                        </View>
+                    )}
 
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.label}>Email</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="name@example.com"
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.label}>Password</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="••••••••"
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry
-                                />
-                            </View>
-
-                            {error && (
-                                <Text style={styles.errorText}>{error}</Text>
-                            )}
-
-                            <TouchableOpacity
-                                style={styles.button}
-                                onPress={handleAuth}
-                                disabled={loading}
-                                activeOpacity={0.8}
-                            >
-                                {loading ? (
-                                    <ActivityIndicator color="#FFF" />
-                                ) : (
-                                    <Text style={styles.buttonText}>
-                                        {isLogin ? 'Sign In' : 'Sign Up'}
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.switchButton}
-                                onPress={() => {
-                                    setIsLogin(!isLogin);
-                                    setError(null);
-                                }}
-                            >
-                                <Text style={styles.switchText}>
-                                    {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.devButton}
-                                onPress={handleDevLogin}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.devButtonText}>
-                                    Developer Login (Skip Auth)
-                                </Text>
-                            </TouchableOpacity>
-                        </Animated.View>
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="name@example.com"
+                            placeholderTextColor={theme.colors.textSecondary}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            accessibilityLabel="Email address input"
+                        />
                     </View>
-                </KeyboardAvoidingView>
-            </SafeAreaView>
-        </LinearGradient>
+
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Password</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="••••••••"
+                            placeholderTextColor={theme.colors.textSecondary}
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry
+                            accessibilityLabel="Password input"
+                        />
+                    </View>
+
+                    {error && (
+                        <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>
+                    )}
+
+                    <Button
+                        title={isLogin ? 'Sign In' : 'Sign Up'}
+                        onPress={handleAuth}
+                        loading={loading}
+                        style={styles.mainButton}
+                    />
+
+                    <Button
+                        title="Continue with Google"
+                        variant="secondary"
+                        icon={<Ionicons name="logo-google" size={20} color={theme.colors.primary} />}
+                        onPress={() => {
+                            promptAsync();
+                        }}
+                    />
+
+                    <TouchableOpacity
+                        style={styles.switchButton}
+                        onPress={() => {
+                            setIsLogin(!isLogin);
+                            setError(null);
+                        }}
+                    >
+                        <Text style={styles.switchText}>
+                            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.devButton}
+                        onPress={handleDevLogin}
+                    >
+                        <Text style={styles.devButtonText}>
+                            Developer Login (Skip Auth)
+                        </Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            </View>
+        </ScreenWrapper>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    safeArea: {
-        flex: 1,
-    },
-    keyboardView: {
-        flex: 1,
-    },
     content: {
         flex: 1,
         justifyContent: 'center',
@@ -241,7 +281,7 @@ const styles = StyleSheet.create({
     },
     input: {
         backgroundColor: theme.colors.surface,
-        borderRadius: 16,
+        borderRadius: theme.borderRadius.md,
         paddingHorizontal: theme.spacing.lg,
         paddingVertical: theme.spacing.md,
         fontSize: 16,
@@ -255,24 +295,8 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 2,
     },
-    button: {
-        backgroundColor: theme.colors.primary,
-        borderRadius: 16,
-        paddingVertical: theme.spacing.lg,
-        alignItems: 'center',
-        justifyContent: 'center',
+    mainButton: {
         marginTop: theme.spacing.md,
-        shadowColor: theme.colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        elevation: 4,
-    },
-    buttonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFF',
-        fontFamily: theme.typography.body.fontFamily,
     },
     switchButton: {
         alignItems: 'center',
