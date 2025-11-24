@@ -16,7 +16,20 @@ def get_preferences():
     """ GET /preferences - Gets user preferences. """
     try:
         user_id = request.current_user['id']
-        prefs = current_app.memory_repo.get_user_preferences(user_id)
+        
+        # Fetch from Supabase
+        result = current_app.supabase.table('user_settings').select('*').eq('user_id', user_id).execute()
+        
+        if result.data:
+            prefs = result.data[0]
+        else:
+            # Return defaults if no settings found
+            prefs = {
+                "listening_mode": False,
+                "listening_memory_policy": "all",
+                "listening_tts_muted": False
+            }
+            
         return jsonify(prefs), 200
     except Exception as e:
         logger.error(f"Get preferences error: {e}", exc_info=True)
@@ -36,14 +49,22 @@ def toggle_listening_mode():
         memory_policy = data.get('memory_policy', None)
         tts_muted = data.get('tts_muted', None)
         
-        success = current_app.memory_repo.set_user_preferences(
-            user_id,
-            listening_mode=enabled,
-            listening_memory_policy=memory_policy,
-            listening_tts_muted=tts_muted
-        )
+        # Prepare update payload
+        payload = {
+            'user_id': user_id,
+            'listening_mode': enabled,
+            'updated_at': 'now()'
+        }
         
-        if success:
+        if memory_policy is not None:
+            payload['listening_memory_policy'] = memory_policy
+        if tts_muted is not None:
+            payload['listening_tts_muted'] = tts_muted
+            
+        # Upsert to Supabase
+        result = current_app.supabase.table('user_settings').upsert(payload).execute()
+        
+        if result.data:
             logger.info(f"Listening mode {'enabled' if enabled else 'disabled'} for user {user_id}")
             return jsonify({
                 "status": "success",
