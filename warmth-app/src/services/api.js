@@ -144,7 +144,7 @@ class WarmthAPI {
 
   // Preferences endpoints
   async getPreferences() {
-    return this.request('/');
+    return this.request('/preferences');
   }
 
   async toggleListeningMode(enabled) {
