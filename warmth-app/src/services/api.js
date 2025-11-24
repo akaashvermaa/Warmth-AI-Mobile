@@ -137,34 +137,6 @@ class WarmthAPI {
       method: 'POST',
       body: JSON.stringify({
         score: mood, // Backend expects 'score'
-        note,
-        timestamp: new Date().toISOString(),
-      }),
-    });
-  }
-
-  async getMoodHistory() {
-    return this.request('/mood-history');
-  }
-
-  async getMoodHistoryDetailed() {
-    return this.request('/mood/history');
-  }
-
-  async getJournal() {
-    return this.request('/api/journal');
-  }
-
-  async exportMoodHistory(password = null) {
-    const url = password ? `/export/mood-history?password=${encodeURIComponent(password)}` : '/export/mood-history';
-    return this.request(url);
-  }
-
-  async decryptExportedData(encryptedData, password) {
-    return this.request('/export/mood-history/decrypt', {
-      method: 'POST',
-      body: JSON.stringify({
-        encrypted_data: encryptedData,
         password,
       }),
     });

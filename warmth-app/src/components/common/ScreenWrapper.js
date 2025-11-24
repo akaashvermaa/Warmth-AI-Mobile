@@ -15,7 +15,7 @@ const ScreenWrapper = ({
     return (
         <Wrapper style={styles.container} {...wrapperProps}>
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-            <SafeAreaView style={[styles.safeArea, style]} edges={['top', 'left', 'right', 'bottom']}>
+            <SafeAreaView style={[styles.safeArea, style]} edges={['top', 'left', 'right']}>
                 {keyboardAvoiding ? (
                     <KeyboardAvoidingView
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

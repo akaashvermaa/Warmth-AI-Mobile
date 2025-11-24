@@ -335,14 +335,17 @@ def create_dev_user():
     POST /auth/dev-user
     Create or get a development user for testing (development only)
     """
+    # DISABLED BY USER REQUEST
+    return jsonify({"error": "Development user creation is currently disabled"}), 403
+
     try:
         # Check if development mode is enabled (TEMPORARILY OVERRIDE FOR TESTING)
         dev_mode = (os.getenv('FLASK_ENV') == 'development' or os.getenv('ENABLE_DEV_USER', 'false').lower() == 'true')
 
         # TEMPORARY: Force enable for testing if not explicitly production
         if not dev_mode and not os.getenv('PRODUCTION_MODE'):
-            dev_mode = True
-            logger.info("TEMPORARY: Forcing development mode for testing")
+            # dev_mode = True  # DISABLED
+            pass
 
         if not dev_mode:
             return jsonify({"error": "Development user creation is disabled in production"}), 403

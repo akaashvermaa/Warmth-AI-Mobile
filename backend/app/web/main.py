@@ -271,3 +271,23 @@ def chat_stream():
 def health_check():
     """Health check endpoint for monitoring."""
     return jsonify({"status": "healthy", "service": "warmth"}), 200
+
+@bp.route('/token-usage', methods=['GET'])
+@require_auth
+def get_token_usage():
+    """Get daily token usage statistics."""
+    try:
+        llm_service = current_app.llm_service
+        usage = llm_service._get_daily_usage()
+        
+        from ..config import DAILY_TOKEN_LIMIT
+        
+        return jsonify({
+            "tokens_used_today": usage,
+            "daily_limit": DAILY_TOKEN_LIMIT,
+            "remaining": max(0, DAILY_TOKEN_LIMIT - usage),
+            "percentage_used": round((usage / DAILY_TOKEN_LIMIT) * 100, 2)
+        }), 200
+    except Exception as e:
+        logger.error(f"Failed to get token usage: {e}", exc_info=True)
+        return jsonify({"error": "Failed to retrieve token usage"}), 500

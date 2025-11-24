@@ -18,13 +18,14 @@ class EmotionAnalysisService:
     """
     
     def __init__(self):
-        """Initialize OpenAI client."""
-        api_key = os.getenv('OPENAI_API_KEY')
+        """Initialize Z.ai client."""
+        import os
+        api_key = os.getenv('ZAI_API_KEY')
         if not api_key:
-            logger.warning("OPENAI_API_KEY not set - emotion analysis will be disabled")
+            logger.warning("ZAI_API_KEY not set - emotion analysis will be disabled")
             self.client = None
         else:
-            self.client = OpenAI(api_key=api_key)
+            self.client = OpenAI(api_key=api_key, base_url='https://api.z.ai/api/paas/v4/')
     
     def analyze_message(self, message: str, context: List[Dict] = None) -> Dict:
         """
@@ -70,13 +71,13 @@ Respond ONLY with valid JSON, no other text."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",  # Using mini for cost efficiency
+                model="glm-4-flash",  # Z.ai free model
                 messages=[
                     {"role": "system", "content": "You are an empathetic emotion analysis assistant. Analyze messages with care and accuracy."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,  # Lower temperature for more consistent results
-                max_tokens=200,
+                max_tokens=150,  # Reduced for cost control
                 response_format={"type": "json_object"}
             )
             
@@ -157,13 +158,13 @@ Respond ONLY with valid JSON."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="glm-4-flash",  # Z.ai free model
                 messages=[
                     {"role": "system", "content": "You are a compassionate emotional wellness assistant. Create supportive, non-judgmental summaries."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,  # Slightly higher for more natural language
-                max_tokens=500,
+                max_tokens=300,  # Reduced for cost control
                 response_format={"type": "json_object"}
             )
             
@@ -275,13 +276,13 @@ Use the exact topic names provided.
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="glm-4-flash",  # Z.ai free model
                 messages=[
                     {"role": "system", "content": "You are an insightful memory assistant. Extract meaningful snippets."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=300,
+                max_tokens=200,  # Reduced for cost control
                 response_format={"type": "json_object"}
             )
             

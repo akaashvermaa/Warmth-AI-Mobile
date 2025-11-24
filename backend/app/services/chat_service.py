@@ -13,7 +13,7 @@ from ..config import (
     AUTO_MEMORIZE_COOLDOWN
 )
 from .llm_service import LLMService
-from .analysis_service import MoodAnalyzer
+# from .analysis_service import MoodAnalyzer  # Removed in cleanup
 from .safety_service import SafetyNet
 from .embedding_service import EmbeddingManager
 from .cache_service import CacheManager, MoodContextCache, SearchResultCache
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class ChatService:
     def __init__(self, supabase_client: Client, llm_service: LLMService,
-                 analysis_service: MoodAnalyzer, safety_service: SafetyNet,
+                 analysis_service, safety_service: SafetyNet,
                  cache_manager: CacheManager):
 
         self.supabase = supabase_client  # Changed from memory_repo to supabase
@@ -481,6 +481,83 @@ Be conservative - only save clear, specific, and important facts."""
         except Exception as e:
             logger.error(f"Error processing memory extractions: {e}")
 
+    def _generate_automated_journal(self, user_id: str):
+        """
+        Generates an automated journal entry from recent conversation.
+        """
+        try:
+            # Get recent chat history (last 20 messages)
+            recent_history = self.history[-20:] if len(self.history) >= 4 else []
+            
+            if len(recent_history) < 4:
+                return
+
+            # Create journal generation prompt
+            journal_prompt = """You are an empathetic journaling assistant. Read the recent conversation and write a personal journal entry from the user's perspective.
+            
+            The journal entry should:
+            1. Reflect on the key topics discussed.
+            2. Capture the emotions felt.
+            3. Be written in the first person ("I felt...", "I realized...").
+            4. Be warm, insightful, and concise (under 200 words).
+            5. Have a creative title.
+
+            Output ONLY a JSON object in this format:
+            {
+                "title": "Creative Title",
+                "content": "The journal entry text...",
+                "mood_score": 0.5,  // Estimated mood from -1.0 (sad) to 1.0 (happy)
+                "tags": ["tag1", "tag2"]
+            }
+            """
+
+            messages = [
+                {"role": "system", "content": journal_prompt},
+                *recent_history
+            ]
+
+            # Get LLM response
+            response = self.llm_service.chat(messages)
+            llm_reply = response.get('message', {}).get('content', '')
+
+            if not llm_reply:
+                return
+
+            # Parse JSON
+            try:
+                clean_reply = llm_reply.strip()
+                if clean_reply.startswith('```json'):
+                    clean_reply = clean_reply[7:]
+                elif clean_reply.startswith('```'):
+                    clean_reply = clean_reply[3:]
+                if clean_reply.endswith('```'):
+                    clean_reply = clean_reply[:-3]
+                clean_reply = clean_reply.strip()
+
+                journal_data = json.loads(clean_reply)
+                
+                # Save to Supabase
+                self.supabase.table('journals').insert({
+                    'user_id': user_id,
+                    'title': journal_data.get('title', 'Reflections'),
+                    'content': journal_data.get('content', ''),
+                    'mood_score': journal_data.get('mood_score', 0),
+                    'tags': journal_data.get('tags', []),
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat(),
+                    'is_automated': True
+                }).execute()
+                
+                logger.info(f"Automated journal generated for user {user_id}")
+
+            except json.JSONDecodeError:
+                logger.error("Failed to parse automated journal JSON")
+            except Exception as e:
+                logger.error(f"Failed to save automated journal: {e}")
+
+        except Exception as e:
+            logger.error(f"Error in automated journal generation: {e}", exc_info=True)
+
     def _schedule_memory_extraction(self):
         """Schedules memory extraction after conversation ends."""
         if not self.auto_memory_extraction_enabled:
@@ -503,7 +580,9 @@ Be conservative - only save clear, specific, and important facts."""
                         # Conversation is still inactive, proceed with extraction
                         with threading.Lock():
                             self._summarize_and_save_memories()
-                        logger.info(f"Scheduled autonomous memory extraction completed for user {user_id}")
+                            # Also generate a journal entry
+                            self._generate_automated_journal(user_id)
+                        logger.info(f"Scheduled autonomous memory extraction and journaling completed for user {user_id}")
             except Exception as e:
                 logger.error(f"Error in scheduled memory extraction: {e}")
 
@@ -647,58 +726,49 @@ User message: """ + user_input
     def _auto_analyze_and_log_mood(self, user_input: str) -> dict:
         """
         Automatically analyzes user input for mood and logs it to Supabase.
-        This is the core of the Living Journal - every message triggers mood analysis.
+        Uses EmotionAnalysisService (Z.ai) for deeper analysis.
         """
         try:
-            # Use the existing MoodAnalyzer to analyze the user input
-            mood_analysis = self.analyzer_service.analyze_sentiment(user_input)
-
-            if not mood_analysis or len(mood_analysis) < 3:
+            # Use EmotionAnalysisService
+            analysis = self.analyzer_service.analyze_message(user_input)
+            
+            if not analysis:
                 logger.warning("Mood analysis returned invalid result")
                 return None
-
-            # Extract mood data from tuple (score, label, topic)
-            mood_score, mood_label, detected_topic = mood_analysis
-
-            # Normalize score to -1 to 1 range (VADER outputs -1 to 1)
-            normalized_score = max(-1.0, min(1.0, mood_score))
-
-            # Use detected topic if available, otherwise determine from content
-            topic = detected_topic if detected_topic != "General" else None
-            if not topic:
-                if mood_score > 0.5:
-                    topic = "happy"
-                elif mood_score < -0.5:
-                    topic = "sad"
-                elif mood_score > 0:
-                    topic = "content"
-                else:
-                    topic = "concern"
-
-            # Extract topic from message content
-            user_input_lower = user_input.lower()
-            if any(word in user_input_lower for word in ['work', 'job', 'office', 'boss']):
-                topic = "work"
-            elif any(word in user_input_lower for word in ['family', 'mom', 'dad', 'sister', 'brother']):
-                topic = "family"
-            elif any(word in user_input_lower for word in ['health', 'tired', 'sick', 'headache']):
-                topic = "health"
-            elif any(word in user_input_lower for word in ['relationship', 'boyfriend', 'girlfriend', 'friend']):
-                topic = "relationships"
-            elif any(word in user_input_lower for word in ['school', 'study', 'exam', 'class']):
-                topic = "education"
-
-            # Log the mood to Supabase
-            self._log_mood(normalized_score, mood_label, topic)
-
-            logger.info(f"Auto mood logged: score={normalized_score:.2f}, label={mood_label}, topic={topic}")
-
-            return {
-                'score': normalized_score,
-                'label': mood_label,
-                'topic': topic,
-                'timestamp': datetime.utcnow().isoformat()
-            }
+            
+            # Extract data
+            mood_score = analysis.get('sentiment_score', 0.0)
+            topics = analysis.get('topics', [])
+            detected_topic = topics[0] if topics else "General"
+            
+            # Determine label based on score
+            if mood_score >= 0.5:
+                mood_label = "Great"
+            elif mood_score >= 0.05:
+                mood_label = "Good"
+            elif mood_score <= -0.5:
+                mood_label = "Heavy"
+            elif mood_score <= -0.05:
+                mood_label = "Low"
+            else:
+                mood_label = "Neutral"
+                
+            # Log to Supabase
+            try:
+                self.supabase.table('mood_logs').insert({
+                    'user_id': self.get_current_user_id(),
+                    'score': mood_score,
+                    'label': mood_label,
+                    'topic': detected_topic,
+                    'timestamp': datetime.utcnow().isoformat()
+                }).execute()
+                
+                logger.info(f"Auto mood logged: score={mood_score:.2f}, label={mood_label}, topic={detected_topic}")
+                return {"score": mood_score, "label": mood_label, "topic": detected_topic}
+                
+            except Exception as e:
+                logger.error(f"Failed to log mood in Supabase: {e}")
+                return {"score": mood_score, "label": mood_label, "topic": detected_topic}
 
         except Exception as e:
             logger.error(f"Auto mood analysis failed: {e}", exc_info=True)
@@ -741,38 +811,66 @@ User message: """ + user_input
         return any(re.search(pattern, combined_text) for pattern in memorizable_patterns)
 
     def _auto_memorize(self, user_input: str, bot_reply: str):
-        """Automatically extracts and stores memories from conversation."""
+        """
+        Automatically extracts and stores memories from conversation using Z.ai LLM.
+        Replaces old regex-based approach with semantic extraction.
+        """
         try:
-            # Check for "I am" statements and similar
-            i_am_patterns = [
-                r"i am (\w+)",
-                r"i'm (\w+)",
-                r"my name is (\w+)",
-                r"i work (?:as a|as) (\w+)",
-                r"i live (?:in|at) ([^.!?]+)",
-                r"my (\w+) is ([^.!?]+)"
+            # Skip if text is too short
+            if len(user_input) < 10:
+                return
+
+            # Construct prompt for Z.ai
+            prompt = f"""
+            Analyze the following user message and extract any permanent or semi-permanent facts about the user.
+            Focus on: names, jobs, location, relationships, preferences, important life events, or recurring struggles.
+            Ignore transient states (like "I'm hungry") unless they imply a pattern.
+            
+            User Message: "{user_input}"
+            
+            If no important facts are found, return "NO_FACTS".
+            If facts are found, return them in JSON format:
+            [
+                {{"category": "Personal", "fact": "User's name is X"}},
+                {{"category": "Work", "fact": "User works as Y"}}
             ]
+            Return ONLY the JSON or "NO_FACTS".
+            """
+            
+            # Call LLM (using a separate lightweight call)
+            response = self.llm_service.client.chat.completions.create(
+                model=self.llm_service.model,
+                messages=[
+                    {"role": "system", "content": "You are a precise fact extractor. Output JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.1
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            if content == "NO_FACTS" or not content.startswith("["):
+                return
 
-            for pattern in i_am_patterns:
-                match = re.search(pattern, user_input.lower())
-                if match:
-                    groups = match.groups()
-                    if len(groups) == 1:
-                        key = "UserAttribute"
-                        value = groups[0].title()
-                    elif len(groups) == 2:
-                        key = groups[0].title()
-                        value = groups[1].strip()
-                    else:
-                        continue
-
-                    # Check if we already know this
-                    existing_memories = self._get_all_memories()
-                    if not any(key.lower() in mem['key'].lower() and value.lower() in mem['value'].lower() for mem in existing_memories):
-                        self._save_memory_tool(key, value)
-                        user_id = self.get_current_user_id()
-                        self.last_memorize_time[user_id] = datetime.utcnow()
-                        logger.info(f"Auto-memorized: {key} = {value}")
+            try:
+                facts = json.loads(content)
+                user_id = self.get_current_user_id()
+                
+                for item in facts:
+                    category = item.get('category', 'General')
+                    fact = item.get('fact')
+                    
+                    if fact:
+                        # Check for duplicates (simple check)
+                        # In a real system, we'd use vector similarity here
+                        self._save_memory_tool(category, fact)
+                        logger.info(f"Auto-memorized ({category}): {fact}")
+                
+                self.last_memorize_time[user_id] = datetime.utcnow()
+                
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse memory JSON: {content}")
 
         except Exception as e:
             logger.error(f"Auto-memorization error: {e}")

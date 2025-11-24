@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+
+# Environment variables (NEVER include these in the image)
+.env
+.env.local
+.env.*.local
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+
+# IDEs
+.vscode
+.idea
+
+# System
+.DS_Store
+Thumbs.db

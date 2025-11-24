@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -128,9 +129,11 @@ const JournalsScreen = ({ navigation }) => {
     const [newContent, setNewContent] = useState('');
     const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        loadAllData();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            loadAllData();
+        }, [])
+    );
 
     const loadAllData = async () => {
         try {

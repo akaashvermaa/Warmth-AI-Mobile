@@ -192,12 +192,14 @@ export default function ChatScreen({ navigation }) {
           {isLoading && <TypingIndicator />}
 
           {/* Input Bar */}
-          <InputBar
-            value={inputText}
-            onChangeText={setInputText}
-            onSend={sendMessage}
-            disabled={isLoading}
-          />
+          <View style={styles.inputWrapper}>
+            <InputBar
+              value={inputText}
+              onChangeText={setInputText}
+              onSend={sendMessage}
+              disabled={isLoading}
+            />
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
@@ -258,5 +260,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: theme.spacing.xl,
     flexGrow: 1,
+  },
+  inputWrapper: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
 });

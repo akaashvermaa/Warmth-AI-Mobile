@@ -14,8 +14,10 @@ load_dotenv()
 from . import config
 
 # --- Service Layer Imports ---
+# --- Service Layer Imports ---
 from .services.llm_service import LLMService
-from .services.analysis_service import MoodAnalyzer
+# from .services.analysis_service import MoodAnalyzer  # Removed
+from .services.emotion_analysis_service import get_emotion_service
 from .services.safety_service import SafetyNet
 from .services.embedding_service import EmbeddingManager
 from .services.cache_service import CacheManager
@@ -43,7 +45,7 @@ try:
 
     # Initialize services
     llm_service = LLMService()
-    analysis_service = MoodAnalyzer()
+    analysis_service = get_emotion_service()
     safety_service = SafetyNet()
     cache_manager = CacheManager()
 
