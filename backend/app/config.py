@@ -4,7 +4,7 @@ import os
 # IMPORTANT: API key must be set via environment variable for security
 ZAI_API_KEY = os.getenv('ZAI_API_KEY')
 ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4/'
-ZAI_MODEL = 'glm-4.5-flash'  # Free tier model - lowest cost
+ZAI_MODEL = 'glm-4-flash'  # Free tier model - lowest cost
 ZAI_TEMPERATURE = 0.3  # Low temperature for concise, predictable responses
 ZAI_TIMEOUT = 30  # Request timeout in seconds
 
