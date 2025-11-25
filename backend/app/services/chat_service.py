@@ -175,7 +175,7 @@ class ChatService:
     def _add_chat_message(self, role: str, content: str):
         """Add chat message to Supabase."""
         try:
-            self.supabase.table('chat_messages').insert({
+            self.supabase.table('messages').insert({
                 'user_id': self.get_current_user_id(),
                 'role': role,
                 'content': content,
@@ -1086,7 +1086,7 @@ User message: """ + user_input
         """Gets recent chat messages from Supabase."""
         try:
             cutoff_time = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
-            result = self.supabase.table('chat_messages').select('role, content, timestamp').eq('user_id', user_id).gte('timestamp', cutoff_time).order('timestamp', desc=True).execute()
+            result = self.supabase.table('messages').select('role, content, timestamp').eq('user_id', user_id).gte('timestamp', cutoff_time).order('timestamp', desc=True).execute()
             return result.data if result.data else []
         except Exception as e:
             logger.error(f"Failed to get recent chat messages from Supabase: {e}")

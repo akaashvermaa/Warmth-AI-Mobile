@@ -13,11 +13,19 @@ const ENV = {
   API_URL:
     process.env.REACT_APP_API_URL ||
     process.env.EXPO_PUBLIC_API_URL ||
-    "https://warmth-ai.onrender.com",
+    'https://warmth-ai.onrender.com',
 
   // Environment type
   IS_DEV: process.env.NODE_ENV === "development",
   IS_PROD: process.env.NODE_ENV === "production",
 };
+
+console.log('🌍 ENV Configuration:', {
+  Platform: Platform.OS,
+  API_URL: ENV.API_URL,
+  NODE_ENV: process.env.NODE_ENV,
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL
+});
 
 export default ENV;
