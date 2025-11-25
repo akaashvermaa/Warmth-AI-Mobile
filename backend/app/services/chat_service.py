@@ -123,7 +123,7 @@ class ChatService:
     def _get_user_preferences(self):
         """Get user preferences from Supabase."""
         try:
-            result = self.supabase.table('user_preferences').select('*').eq('user_id', self.get_current_user_id()).execute()
+            result = self.supabase.table('user_settings').select('*').eq('user_id', self.get_current_user_id()).execute()
             if result.data:
                 return result.data[0]
             # Create default preferences if not found
@@ -134,7 +134,7 @@ class ChatService:
                 'listening_tts_muted': True,
                 'tts_enabled': False
             }
-            self.supabase.table('user_preferences').insert(default_prefs).execute()
+            self.supabase.table('user_settings').insert(default_prefs).execute()
             return default_prefs
         except Exception as e:
             logger.error(f"Failed to get user preferences from Supabase: {e}")
@@ -145,7 +145,8 @@ class ChatService:
         try:
             if with_embeddings:
                 # Use the view for memories with embeddings
-                result = self.supabase.table('memories_with_embeddings').select('*').eq('user_id', self.get_current_user_id()).execute()
+                # Query memories directly instead of non-existent view
+                result = self.supabase.table('memories').select('*').eq('user_id', self.get_current_user_id()).execute()
             else:
                 result = self.supabase.table('memories').select('*').eq('user_id', self.get_current_user_id()).execute()
             return result.data if result.data else []
