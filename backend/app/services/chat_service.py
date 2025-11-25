@@ -358,9 +358,10 @@ class ChatService:
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-            # Log messages to repository for proactive check-in system
-            self._add_chat_message("user", user_input)
-            self._add_chat_message("assistant", bot_reply)
+            # Messages are now stored by the API endpoint using RPC functions
+            # Removed duplicate storage to prevent null user_id errors
+            # self._add_chat_message("user", user_input)
+            # self._add_chat_message("assistant", bot_reply)
 
             self.history.append({"role": "user", "content": user_input})
             self.history.append({"role": "assistant", "content": bot_reply})

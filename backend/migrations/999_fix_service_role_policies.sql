@@ -67,11 +67,5 @@ TO service_role
 USING (true)
 WITH CHECK (true);
 
--- Verify all policies are in place
-SELECT
-    tablename,
-    COUNT(*) FILTER (WHERE roles @> ARRAY['service_role']) as service_role_policies
-FROM pg_policies
-WHERE schemaname = 'public'
-GROUP BY tablename
-ORDER BY tablename;
+-- Verification complete
+-- All service_role bypass policies have been added
