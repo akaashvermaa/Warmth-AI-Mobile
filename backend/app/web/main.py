@@ -173,12 +173,40 @@ def chat():
                         logger.error(f"Failed to create conversation: {e}")
 
                 if conversation_id:
-                    # DEBUG: Log service key status before RPC call
+                    # DEBUG: Comprehensive key verification
+                    import os
                     from ..config import SUPABASE_SERVICE_KEY
-                    if SUPABASE_SERVICE_KEY:
-                        logger.info(f"🔑 SUPABASE_SERVICE_KEY loaded: ...{SUPABASE_SERVICE_KEY[-8:]}")
+                    
+                    # Check both possible env var names
+                    key_from_service_key = os.environ.get("SUPABASE_SERVICE_KEY")
+                    key_from_service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+                    
+                    logger.info("=" * 60)
+                    logger.info("🔍 SUPABASE KEY VERIFICATION")
+                    logger.info("SUPABASE_SERVICE_KEY env var present: %s", bool(key_from_service_key))
+                    logger.info("SUPABASE_SERVICE_ROLE_KEY env var present: %s", bool(key_from_service_role_key))
+                    
+                    # Determine which key is actually being used
+                    actual_key = SUPABASE_SERVICE_KEY
+                    if actual_key:
+                        logger.info("✅ Key loaded in config: YES")
+                        logger.info("   Key starts with: %s", actual_key[:12] if len(actual_key) >= 12 else actual_key)
+                        logger.info("   Key ends with: ...%s", actual_key[-8:])
+                        
+                        # Verify it's the SERVICE ROLE key (not anon/publishable)
+                        if actual_key.startswith("eyJ"):
+                            logger.info("   ✅ Key format: JWT (service_role or anon)")
+                            logger.info("   ⚠️  Cannot distinguish service_role from anon by prefix alone")
+                        elif actual_key.startswith("sb_secret_"):
+                            logger.info("   ✅ Key format: SECRET (service_role)")
+                        elif actual_key.startswith("sb_publishable_"):
+                            logger.error("   ❌ Key format: PUBLISHABLE (wrong key!)")
+                        else:
+                            logger.warning("   ⚠️  Key format: UNKNOWN")
                     else:
-                        logger.error("❌ SUPABASE_SERVICE_KEY is NOT set!")
+                        logger.error("❌ Key loaded in config: NO")
+                    
+                    logger.info("=" * 60)
                     
                     # 2. Store USER message using RPC
                     try:
