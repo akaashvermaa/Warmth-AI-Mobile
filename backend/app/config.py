@@ -1,16 +1,3 @@
-import os
-
-# Z.ai Configuration (OpenAI-compatible API)
-# IMPORTANT: API key must be set via environment variable for security
-ZAI_API_KEY = os.getenv('ZAI_API_KEY')
-ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4'
-ZAI_MODEL = 'glm-4'  # Base model - more stable
-ZAI_TEMPERATURE = 0.3  # Low temperature for concise, predictable responses
-ZAI_TIMEOUT = 30  # Request timeout in seconds
-
-# Token Limits (Cost Control)
-MAX_INPUT_TOKENS = 500  # Trim inputs longer than this
-MAX_OUTPUT_TOKENS = 150  # Limit response length
 DAILY_TOKEN_LIMIT = 50000  # Daily usage cap to prevent runaway costs
 
 # Database Configuration - Supabase
