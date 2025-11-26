@@ -19,6 +19,14 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
+# Log configuration status (without exposing keys)
+import logging
+_config_logger = logging.getLogger(__name__)
+if SUPABASE_SERVICE_KEY:
+    _config_logger.info(f"SUPABASE_SERVICE_KEY loaded: {SUPABASE_SERVICE_KEY[:20]}...")
+else:
+    _config_logger.warning("SUPABASE_SERVICE_KEY is NOT set!")
+
 # Chat Configuration
 CHAT_HISTORY_LENGTH = int(os.getenv('CHAT_HISTORY_LENGTH', '10'))
 MAX_HISTORY_TOKENS = int(os.getenv('MAX_HISTORY_TOKENS', '2000'))

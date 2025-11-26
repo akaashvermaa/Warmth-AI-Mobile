@@ -50,7 +50,7 @@ class EmotionAnalysisService:
                     for msg in context[-5:]  # Last 5 messages for context
                 ])
             
-            # Create analysis prompt
+            # Create analysis prompt with EXPLICIT JSON requirement
             prompt = f"""Analyze the following message for emotional content and topics.
 
 Context (previous messages):
@@ -59,30 +59,41 @@ Context (previous messages):
 Current message to analyze:
 {message}
 
-Provide a JSON response with:
-1. "emotions": Array of detected emotions (e.g., ["happy", "anxious", "tired"]). Use these categories: happy, sad, anxious, calm, tired, proud, frustrated, hopeful, lonely, grateful, overwhelmed, peaceful.
-2. "topics": Array of main topics discussed (e.g., ["work stress", "family", "self-care"])
-3. "sentiment_score": Float from -1 (very negative) to +1 (very positive)
-4. "intensity": Float from 0 (mild) to 1 (intense)
+You MUST respond with ONLY a valid JSON object in this EXACT format:
+{{
+  "emotions": ["emotion1", "emotion2"],
+  "topics": ["topic1", "topic2"],
+  "sentiment_score": 0.5,
+  "intensity": 0.7
+}}
 
-Be empathetic and accurate. Focus on the user's emotional state, not the assistant's responses.
+Rules:
+- "emotions": Array of 1-5 emotions from: happy, sad, anxious, calm, tired, proud, frustrated, hopeful, lonely, grateful, overwhelmed, peaceful
+- "topics": Array of 1-5 main topics discussed
+- "sentiment_score": Float from -1.0 (very negative) to +1.0 (very positive)
+- "intensity": Float from 0.0 (mild) to 1.0 (intense)
 
-Respond ONLY with valid JSON, no other text."""
+Respond with ONLY the JSON object. No explanations, no markdown, no extra text."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
                 model="GLM-4.5-Flash",  # Z.ai model name from user's plan
                 messages=[
-                    {"role": "system", "content": "You are an empathetic emotion analysis assistant. Analyze messages with care and accuracy."},
+                    {"role": "system", "content": "You are a JSON-only emotion analysis assistant. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Lower temperature for more consistent results
-                max_tokens=150,  # Reduced for cost control
+                temperature=0.3,
+                max_tokens=150,
                 response_format={"type": "json_object"}
             )
             
-            # Parse response
-            result = json.loads(response.choices[0].message.content)
+            # Parse response with error handling
+            content = response.choices[0].message.content.strip()
+            try:
+                result = json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error in emotion analysis: {e}. Content: {content[:200]}")
+                return self._get_fallback_analysis()
             
             # Validate and normalize
             return {
@@ -135,41 +146,46 @@ Respond ONLY with valid JSON, no other text."""
                 if msg.get('sentiment_score') is not None:
                     sentiment_scores.append(msg['sentiment_score'])
             
-            # Create recap prompt
+            # Create recap prompt with EXPLICIT JSON requirement
             prompt = f"""Create a compassionate 3-day emotional summary for a user.
 
 User's messages over the last 3 days:
-{chr(10).join(user_messages[:20])}  # Limit to 20 most recent
+{chr(10).join(user_messages[:20])}
 
 Detected emotions: {', '.join(set(all_emotions))}
 Detected topics: {', '.join(set(all_topics))}
 Average sentiment: {sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0:.2f}
 
-Create a JSON response with:
-1. "headline": A warm, empathetic one-sentence summary (e.g., "You've been carrying a lot — here's a gentle look back.")
-2. "narrative": A 2-3 sentence compassionate narrative about their emotional journey
-3. "top_emotions": Array of 3-5 most prominent emotions with emoji (e.g., [{{"emoji": "😔", "label": "tired", "count": 5}}])
-4. "key_topics": Array of 3-5 main topics discussed
-5. "recommendations": Array of 2-3 gentle action suggestions (e.g., [{{"icon": "🫁", "title": "Try a 2-minute breathing break", "action": "breathing"}}])
+You MUST respond with ONLY a valid JSON object in this format:
+{{
+  "headline": "string",
+  "narrative": "string",
+  "top_emotions": [{{"emoji": "😔", "label": "tired", "count": 5}}],
+  "key_topics": ["topic1", "topic2"],
+  "recommendations": [{{"icon": "🫁", "title": "string", "action": "breathing"}}]
+}}
 
-Be warm, non-judgmental, and supportive. Focus on encouragement and tiny actionable steps.
-
-Respond ONLY with valid JSON."""
+Be warm and supportive. Respond with ONLY the JSON object."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="GLM-4.5-Flash",  # Z.ai model name from user's plan
+                model="GLM-4.5-Flash",
                 messages=[
-                    {"role": "system", "content": "You are a compassionate emotional wellness assistant. Create supportive, non-judgmental summaries."},
+                    {"role": "system", "content": "You are a JSON-only emotional wellness assistant. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,  # Slightly higher for more natural language
-                max_tokens=300,  # Reduced for cost control
+                temperature=0.7,
+                max_tokens=300,
                 response_format={"type": "json_object"}
             )
             
-            # Parse response
-            result = json.loads(response.choices[0].message.content)
+            # Parse response with error handling
+            content = response.choices[0].message.content.strip()
+            try:
+                result = json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error in 3-day recap: {e}. Content: {content[:200]}")
+                return self._get_fallback_recap()
             
             return {
                 'user_id': user_id,
@@ -276,18 +292,23 @@ Use the exact topic names provided.
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="GLM-4.5-Flash",  # Z.ai model name from user's plan
+                model="GLM-4.5-Flash",
                 messages=[
-                    {"role": "system", "content": "You are an insightful memory assistant. Extract meaningful snippets."},
+                    {"role": "system", "content": "You are a JSON-only memory assistant. Always respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=200,  # Reduced for cost control
+                max_tokens=200,
                 response_format={"type": "json_object"}
             )
             
-            # Parse response
-            result = json.loads(response.choices[0].message.content)
+            # Parse response with error handling
+            content = response.choices[0].message.content.strip()
+            try:
+                result = json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error in memory graph: {e}. Content: {content[:200]}")
+                return self._get_fallback_memory_graph()
             memories = result.get('memories', [])
             
             # If the model didn't return 'memories' key directly, try to parse the list
