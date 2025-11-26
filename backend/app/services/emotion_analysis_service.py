@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 import openai
 from openai import OpenAI
 
+from ..config import ZAI_API_KEY, ZAI_BASE_URL
+
 logger = logging.getLogger(__name__)
 
 class EmotionAnalysisService:
@@ -19,13 +21,11 @@ class EmotionAnalysisService:
     
     def __init__(self):
         """Initialize Z.ai client."""
-        import os
-        api_key = os.getenv('ZAI_API_KEY')
-        if not api_key:
+        if not ZAI_API_KEY:
             logger.warning("ZAI_API_KEY not set - emotion analysis will be disabled")
             self.client = None
         else:
-            self.client = OpenAI(api_key=api_key, base_url='https://api.z.ai/api/paas/v4/')
+            self.client = OpenAI(api_key=ZAI_API_KEY, base_url=ZAI_BASE_URL)
     
     def analyze_message(self, message: str, context: List[Dict] = None) -> Dict:
         """
@@ -71,7 +71,7 @@ Respond ONLY with valid JSON, no other text."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="glm-4-flash",  # Z.ai free model
+                model="GLM-4.5-Flash",  # Z.ai model name from user's plan
                 messages=[
                     {"role": "system", "content": "You are an empathetic emotion analysis assistant. Analyze messages with care and accuracy."},
                     {"role": "user", "content": prompt}
@@ -158,7 +158,7 @@ Respond ONLY with valid JSON."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="glm-4-flash",  # Z.ai free model
+                model="GLM-4.5-Flash",  # Z.ai model name from user's plan
                 messages=[
                     {"role": "system", "content": "You are a compassionate emotional wellness assistant. Create supportive, non-judgmental summaries."},
                     {"role": "user", "content": prompt}
@@ -276,7 +276,7 @@ Use the exact topic names provided.
 
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="glm-4-flash",  # Z.ai free model
+                model="GLM-4.5-Flash",  # Z.ai model name from user's plan
                 messages=[
                     {"role": "system", "content": "You are an insightful memory assistant. Extract meaningful snippets."},
                     {"role": "user", "content": prompt}

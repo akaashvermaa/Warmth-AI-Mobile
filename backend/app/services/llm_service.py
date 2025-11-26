@@ -34,11 +34,11 @@ class LLMService:
             raise ValueError("ZAI_API_KEY environment variable not set")
         
         self.client = OpenAI(api_key=ZAI_API_KEY, base_url=ZAI_BASE_URL, timeout=ZAI_TIMEOUT)
-        self.model = ZAI_MODEL  # Hardcoded to glm-4-flash
+        self.model = ZAI_MODEL  # Z.ai model from config
         self.encoder = tiktoken.encoding_for_model("gpt-3.5-turbo")  # Use GPT tokenizer as fallback
         self.cache = {}  # {hash: (response, timestamp)}
         
-        logger.info(f"Z.ai LLM Service initialized with model: {self.model}")
+        logger.info(f"Z.ai LLM Service initialized - Model: {self.model}, Base URL: {ZAI_BASE_URL}")
 
     def is_available(self):
         """Check if Z.ai API is configured"""
@@ -152,6 +152,7 @@ class LLMService:
                     return cached_response
             
             # 4. Call Z.ai
+            llm_logger.info(f"Calling Z.ai API - Model: {self.model}, Base URL: {ZAI_BASE_URL}, Messages: {len(messages)}")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -210,7 +211,7 @@ class LLMService:
             # 2. Validate and trim input
             messages = self._validate_input(messages)
             
-            llm_logger.info("Z.ai streaming started", extra={"model": self.model})
+            llm_logger.info(f"Z.ai streaming started - Model: {self.model}, Base URL: {ZAI_BASE_URL}")
             
             # 3. Stream from Z.ai
             stream = self.client.chat.completions.create(
