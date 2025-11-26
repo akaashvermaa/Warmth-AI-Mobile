@@ -173,22 +173,39 @@ def chat():
                         logger.error(f"Failed to create conversation: {e}")
 
                 if conversation_id:
+                    # DEBUG: Log service key status before RPC call
+                    from ..config import SUPABASE_SERVICE_KEY
+                    if SUPABASE_SERVICE_KEY:
+                        logger.info(f"🔑 SUPABASE_SERVICE_KEY loaded: ...{SUPABASE_SERVICE_KEY[-8:]}")
+                    else:
+                        logger.error("❌ SUPABASE_SERVICE_KEY is NOT set!")
+                    
                     # 2. Store USER message using RPC
-                    current_app.supabase.rpc('add_message', {
-                        'p_conversation_id': conversation_id,
-                        'p_role': 'user',
-                        'p_content': user_message,
-                        'p_emotions': emotion_data.get('emotions') if emotion_data else None,
-                        'p_topics': emotion_data.get('topics') if emotion_data else None,
-                        'p_sentiment_score': emotion_data.get('sentiment_score') if emotion_data else None
-                    }).execute()
+                    try:
+                        logger.info(f"Calling add_message RPC for user message (conversation_id={conversation_id})")
+                        current_app.supabase.rpc('add_message', {
+                            'p_conversation_id': conversation_id,
+                            'p_role': 'user',
+                            'p_content': user_message,
+                            'p_emotions': emotion_data.get('emotions') if emotion_data else None,
+                            'p_topics': emotion_data.get('topics') if emotion_data else None,
+                            'p_sentiment_score': emotion_data.get('sentiment_score') if emotion_data else None
+                        }).execute()
+                        logger.info("✅ User message stored successfully")
+                    except Exception as rpc_error:
+                        logger.error(f"❌ RPC add_message failed for user: {rpc_error}")
                     
                     # 3. Store ASSISTANT message using RPC
-                    current_app.supabase.rpc('add_message', {
-                        'p_conversation_id': conversation_id,
-                        'p_role': 'assistant',
-                        'p_content': reply
-                    }).execute()
+                    try:
+                        logger.info(f"Calling add_message RPC for assistant message (conversation_id={conversation_id})")
+                        current_app.supabase.rpc('add_message', {
+                            'p_conversation_id': conversation_id,
+                            'p_role': 'assistant',
+                            'p_content': reply
+                        }).execute()
+                        logger.info("✅ Assistant message stored successfully")
+                    except Exception as rpc_error:
+                        logger.error(f"❌ RPC add_message failed for assistant: {rpc_error}")
                 else:
                     logger.warning("Could not store messages: No conversation ID available")
 
