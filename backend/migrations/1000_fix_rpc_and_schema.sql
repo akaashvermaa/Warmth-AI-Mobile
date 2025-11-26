@@ -9,19 +9,19 @@ CREATE OR REPLACE FUNCTION public.add_message(
     p_content TEXT,
     p_emotions JSONB DEFAULT NULL,
     p_topics TEXT[] DEFAULT NULL,
-    p_sentiment_score FLOAT DEFAULT NULL
+    p_sentiment_score FLOAT DEFAULT NULL,
+    p_user_id UUID DEFAULT NULL  -- NEW: Allow service role to provide user_id
 )
 RETURNS UUID AS $$
 DECLARE
     v_message_id UUID;
     v_user_id UUID;
 BEGIN
-    -- Get user_id from authenticated session
-    v_user_id := auth.uid();
+    -- Get user_id: prefer auth.uid() (user JWT), fall back to p_user_id (service role)
+    v_user_id := COALESCE(auth.uid(), p_user_id);
     
     IF v_user_id IS NULL THEN
-        -- Fallback for testing/service role if needed, but preferably should be authenticated
-        -- You can remove this check if you want to allow anon inserts (not recommended)
+        -- Neither user JWT nor service role provided user_id
         RAISE EXCEPTION 'Not authenticated';
     END IF;
 

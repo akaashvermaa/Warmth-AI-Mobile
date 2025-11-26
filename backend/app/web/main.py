@@ -257,6 +257,7 @@ def chat():
                             'p_conversation_id': str(conversation_id),
                             'p_role': 'user',
                             'p_content': user_message,
+                            'p_user_id': str(current_user_id),  # NEW: Provide user_id for service role
                             'p_emotions': emotion_data.get('emotions') if emotion_data else None,
                             'p_topics': emotion_data.get('topics') if emotion_data else None,
                             'p_sentiment_score': emotion_data.get('sentiment_score') if emotion_data else None
@@ -273,7 +274,8 @@ def chat():
                         assistant_message_result = call_supabase_rpc('add_message', {
                             'p_conversation_id': str(conversation_id),
                             'p_role': 'assistant',
-                            'p_content': reply
+                            'p_content': reply,
+                            'p_user_id': str(current_user_id)  # NEW: Provide user_id for service role
                         })
                         
                         logger.info("✅ Assistant message stored successfully: %s", assistant_message_result)
