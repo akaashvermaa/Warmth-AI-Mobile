@@ -2,6 +2,7 @@
 import os
 import logging
 import hashlib
+import httpx
 from datetime import datetime
 from flask import (
     Blueprint, 
@@ -16,7 +17,7 @@ from flask import (
 
 # Use relative imports
 from ..security import csrf_protect, require_auth, secure_log_message, generate_csrf_token, get_current_user_id
-from ..config import DEFAULT_USER_ID
+from ..config import DEFAULT_USER_ID, SUPABASE_URL, SUPABASE_SERVICE_KEY
 from .validation import validate_json_request, validate_message
 
 # Import services
@@ -24,6 +25,46 @@ from .validation import validate_json_request, validate_message
 
 bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
+
+# Helper function for manual RPC calls with explicit headers
+def call_supabase_rpc(function_name: str, params: dict) -> dict:
+    """
+    Call Supabase RPC function with explicit headers.
+    The Supabase Python client may not send both required headers for RPC calls.
+    """
+    if not SUPABASE_SERVICE_KEY:
+        logger.error("❌ SUPABASE_SERVICE_KEY not set, cannot call RPC")
+        raise Exception("SUPABASE_SERVICE_KEY not configured")
+    
+    url = f"{SUPABASE_URL}/rest/v1/rpc/{function_name}"
+    
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+    
+    # Log header presence (masked)
+    logger.info("🔑 RPC Call: %s", function_name)
+    logger.info("   Headers present: Authorization=%s, apikey=%s", 
+                "Authorization" in headers, "apikey" in headers)
+    logger.info("   Using key: starts=%s...%s", 
+                SUPABASE_SERVICE_KEY[:12] if len(SUPABASE_SERVICE_KEY) >= 12 else "SHORT",
+                SUPABASE_SERVICE_KEY[-8:])
+    
+    try:
+        response = httpx.post(url, json=params, headers=headers, timeout=10.0)
+        logger.info("   RPC Response: status=%s", response.status_code)
+        
+        if response.status_code not in [200, 201]:
+            logger.error("   RPC Error: %s", response.text)
+            response.raise_for_status()
+        
+        return response.json()
+    except Exception as e:
+        logger.error("   RPC Exception: %s", str(e))
+        raise
 
 # Cache for rendered templates
 _template_cache = {}
@@ -208,30 +249,34 @@ def chat():
                     
                     logger.info("=" * 60)
                     
-                    # 2. Store USER message using RPC
+                    # 2. Store USER message using manual RPC with explicit headers
                     try:
                         logger.info(f"Calling add_message RPC for user message (conversation_id={conversation_id})")
-                        current_app.supabase.rpc('add_message', {
-                            'p_conversation_id': conversation_id,
+                        
+                        user_message_result = call_supabase_rpc('add_message', {
+                            'p_conversation_id': str(conversation_id),
                             'p_role': 'user',
                             'p_content': user_message,
                             'p_emotions': emotion_data.get('emotions') if emotion_data else None,
                             'p_topics': emotion_data.get('topics') if emotion_data else None,
                             'p_sentiment_score': emotion_data.get('sentiment_score') if emotion_data else None
-                        }).execute()
-                        logger.info("✅ User message stored successfully")
+                        })
+                        
+                        logger.info("✅ User message stored successfully: %s", user_message_result)
                     except Exception as rpc_error:
                         logger.error(f"❌ RPC add_message failed for user: {rpc_error}")
                     
-                    # 3. Store ASSISTANT message using RPC
+                    # 3. Store ASSISTANT message using manual RPC with explicit headers
                     try:
                         logger.info(f"Calling add_message RPC for assistant message (conversation_id={conversation_id})")
-                        current_app.supabase.rpc('add_message', {
-                            'p_conversation_id': conversation_id,
+                        
+                        assistant_message_result = call_supabase_rpc('add_message', {
+                            'p_conversation_id': str(conversation_id),
                             'p_role': 'assistant',
                             'p_content': reply
-                        }).execute()
-                        logger.info("✅ Assistant message stored successfully")
+                        })
+                        
+                        logger.info("✅ Assistant message stored successfully: %s", assistant_message_result)
                     except Exception as rpc_error:
                         logger.error(f"❌ RPC add_message failed for assistant: {rpc_error}")
                 else:
