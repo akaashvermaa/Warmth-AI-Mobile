@@ -59,7 +59,9 @@ Context (previous messages):
 Current message to analyze:
 {message}
 
-You MUST respond with ONLY a valid JSON object in this EXACT format:
+You MUST respond with ONLY a valid JSON object matching this EXACT schema. Do not include any other text, markdown formatting, or explanations.
+
+Schema:
 {{
   "emotions": ["emotion1", "emotion2"],
   "topics": ["topic1", "topic2"],
@@ -73,22 +75,31 @@ Rules:
 - "sentiment_score": Float from -1.0 (very negative) to +1.0 (very positive)
 - "intensity": Float from 0.0 (mild) to 1.0 (intense)
 
-Respond with ONLY the JSON object. No explanations, no markdown, no extra text."""
+Return ONLY the JSON string."""
 
             # Call OpenAI API
-            response = self.client.chat.completions.create(
-                model="GLM-4.5-Flash",  # Z.ai model name from user's plan
-                messages=[
-                    {"role": "system", "content": "You are a JSON-only emotion analysis assistant. Always respond with valid JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=150,
-                response_format={"type": "json_object"}
-            )
+            try:
+                response = self.client.chat.completions.create(
+                    model="GLM-4.5-Flash",  # Z.ai model name from user's plan
+                    messages=[
+                        {"role": "system", "content": "You are a JSON-only emotion analysis assistant. Always respond with valid JSON. No markdown, no commentary."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=150,
+                    response_format={"type": "json_object"}
+                )
+            except Exception as e:
+                # Handle rate limits (429) or other API errors gracefully
+                logger.warning(f"Emotion analysis API call failed: {e}")
+                return self._get_fallback_analysis()
             
             # Parse response with error handling
             content = response.choices[0].message.content.strip()
+            if not content:
+                logger.warning("Emotion analysis returned empty content")
+                return self._get_fallback_analysis()
+
             try:
                 result = json.loads(content)
             except json.JSONDecodeError as e:

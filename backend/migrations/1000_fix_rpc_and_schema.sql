@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION public.add_message(
     p_role TEXT,
     p_content TEXT,
     p_emotions JSONB DEFAULT NULL,
-    p_topics JSONB DEFAULT NULL,
+    p_topics TEXT[] DEFAULT NULL,
     p_sentiment_score FLOAT DEFAULT NULL
 )
 RETURNS UUID AS $$
