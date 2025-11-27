@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Animated, {
     FadeInDown,
+    LinearTransition,
     SlideInRight,
     SlideOutLeft
 } from 'react-native-reanimated';
@@ -196,7 +197,7 @@ const AuthScreen = ({ onLogin }) => {
                                         width: i === step ? 24 : 8,
                                     }
                                 ]}
-                                layout={Animated.Layout.springify()}
+                                layout={LinearTransition.springify()}
                             />
                         ))}
                     </View>
