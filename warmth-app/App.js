@@ -1,15 +1,24 @@
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
+import {
+    CormorantGaramond_600SemiBold,
+    useFonts as useCormorantFonts
+} from '@expo-google-fonts/cormorant-garamond';
+import {
+    Nunito_400Regular,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+    useFonts as useNunitoFonts
+} from '@expo-google-fonts/nunito';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View
+    ActivityIndicator,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import ChatScreen from './src/screens/ChatScreen';
 import JournalsScreen from './src/screens/JournalsScreen';
@@ -26,12 +35,18 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Load Inter fonts
-  let [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
+  // Load Fonts
+  let [cormorantLoaded] = useCormorantFonts({
+    CormorantGaramond_600SemiBold,
   });
+
+  let [nunitoLoaded] = useNunitoFonts({
+    Nunito_400Regular,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+  });
+
+  const fontsLoaded = cormorantLoaded && nunitoLoaded;
 
   // Initialize app
   useEffect(() => {
@@ -60,9 +75,8 @@ export default function App() {
         }
       } catch (error) {
         console.error('Auto token refresh failed:', error);
-        // Don't log out on refresh failure - token might still be valid
       }
-    }, 50 * 60 * 1000); // Refresh every 50 minutes
+    }, 50 * 60 * 1000);
 
     return () => clearInterval(refreshInterval);
   }, [isAuthenticated]);
@@ -72,13 +86,10 @@ export default function App() {
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
         api.setAuthToken(token);
-
-        // Validate token by fetching user profile
         try {
           await api.getUserProfile();
           setIsAuthenticated(true);
         } catch (error) {
-          // Token is invalid, try to refresh
           console.log('Token invalid, attempting refresh...');
           const refreshToken = await AsyncStorage.getItem('refresh_token');
 
@@ -99,12 +110,9 @@ export default function App() {
               console.error('Token refresh failed:', refreshError);
             }
           }
-
-          // Refresh failed or no refresh token, clear everything
           await handleLogout();
         }
       } else {
-        // No token found
         setIsAuthenticated(false);
       }
     } catch (error) {
@@ -122,7 +130,7 @@ export default function App() {
           <StatusBar barStyle="dark-content" />
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.loadingText}>Loading Warmth AI...</Text>
+            <Text style={styles.loadingText}>Loading Warmth...</Text>
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -131,15 +139,11 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      // Clear all tokens from storage
       await AsyncStorage.multiRemove(['auth_token', 'refresh_token']);
-      // Clear token from API client
       api.clearAuthToken();
-      // Update auth state
       setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
-      // Force logout anyway
       setIsAuthenticated(false);
     }
   };
@@ -186,7 +190,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: theme.spacing.md,
-    ...theme.typography.body,
+    fontFamily: theme.typography.bodyFont,
+    fontSize: 16,
     color: theme.colors.textSecondary,
   },
 });

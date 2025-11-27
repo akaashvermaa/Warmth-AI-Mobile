@@ -1,47 +1,73 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
+    Dimensions,
     Keyboard,
+    KeyboardAvoidingView,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, {
+    FadeInDown,
+    SlideInRight,
+    SlideOutLeft
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Button from '../components/common/Button';
 import ScreenWrapper from '../components/common/ScreenWrapper';
 import api from '../services/api';
 import theme from '../theme';
 
-import { makeRedirectUri } from 'expo-auth-session';
+const { width } = Dimensions.get('window');
 
-WebBrowser.maybeCompleteAuthSession();
+const OnboardingSlide = ({ title, subtitle, icon, isLast, children }) => (
+    <View style={styles.slide}>
+        <View style={styles.slideContent}>
+            {icon && (
+                <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.iconContainer}>
+                    <Ionicons name={icon} size={48} color={theme.colors.primary} />
+                </Animated.View>
+            )}
+            <Animated.Text entering={FadeInDown.delay(300).springify()} style={styles.title}>
+                {title}
+            </Animated.Text>
+            <Animated.Text entering={FadeInDown.delay(400).springify()} style={styles.subtitle}>
+                {subtitle}
+            </Animated.Text>
+            {children}
+        </View>
+    </View>
+);
 
 const AuthScreen = ({ onLogin }) => {
-    const [isLogin, setIsLogin] = useState(true);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [fullName, setFullName] = useState('');
+    const [step, setStep] = useState(0);
+    const [name, setName] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const insets = useSafeAreaInsets();
 
-    // Create a redirect URI - this is critical for the mismatch error
-    const redirectUri = makeRedirectUri({
-        scheme: 'warmth'
-    });
+    const handleNext = () => {
+        if (step < 3) {
+            setStep(step + 1);
+        } else {
+            handleStart();
+        }
+    };
 
-    console.log("---------------------------------------------------");
-    console.log("GOOGLE AUTH REDIRECT URI:", redirectUri);
-    console.log("Please add this URI to your Google Cloud Console > APIs & Services > Credentials > Web Client ID > Authorized redirect URIs");
-    console.log("---------------------------------------------------");
+    const handleBack = () => {
+        if (step > 0) {
+            setStep(step - 1);
+        }
+    };
 
-    const handleAuth = async () => {
-        if (!email || !password || (!isLogin && !fullName)) {
-            setError('Please fill in all fields');
+    const handleStart = async () => {
+        if (!name.trim()) {
+            setError('Please enter a name or nickname.');
             return;
         }
 
@@ -50,280 +76,265 @@ const AuthScreen = ({ onLogin }) => {
         setError(null);
 
         try {
-            let response;
-            if (isLogin) {
-                response = await api.signIn(email, password);
+            // Generate a random guest account
+            // In a real app, we might want to let them link an email later
+            const randomId = Math.random().toString(36).substring(7);
+            const email = `guest_${randomId}@warmth.ai`;
+            const password = `pass_${Math.random().toString(36)}`;
+
+            // Sign up as a new user
+            const response = await api.signUp(email, password, name);
+
+            if (response?.access_token) {
+                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+                await AsyncStorage.setItem('auth_token', response.access_token);
+                
+                if (response.refresh_token) {
+                    await AsyncStorage.setItem('refresh_token', response.refresh_token);
+                }
+
+                if (onLogin) onLogin();
             } else {
-                response = await api.signUp(email, password, fullName);
-                // Check if signup returned a token (auto-login)
-                if (!response?.access_token) {
-                    setIsLogin(true);
-                    setError('Account created! Please sign in.');
-                    setLoading(false);
-                    return;
+                // Fallback if auto-login after signup fails
+                const loginResp = await api.signIn(email, password);
+                if (loginResp?.access_token) {
+                    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+                    await AsyncStorage.setItem('auth_token', loginResp.access_token);
+                    if (onLogin) onLogin();
                 }
-            }
-
-            // Persist token
-            if (response?.access_token) {
-                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-                await AsyncStorage.setItem('auth_token', response.access_token);
-
-                if (response.refresh_token) {
-                    await AsyncStorage.setItem('refresh_token', response.refresh_token);
-                }
-            }
-
-            if (onLogin) {
-                onLogin();
             }
         } catch (err) {
-            console.error('Auth error:', err);
-            setError(err.message || 'Authentication failed. Please try again.');
+            console.error('Onboarding error:', err);
+            setError('Something went wrong. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDevLogin = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await api.createDevUser('dev_user_' + Math.floor(Math.random() * 1000));
-
-            if (response?.access_token) {
-                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-                await AsyncStorage.setItem('auth_token', response.access_token);
-                if (onLogin) onLogin();
-            }
-        } catch (err) {
-            console.error('Dev login error:', err);
-            setError('Dev login failed: ' + err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const [request, response, promptAsync] = Google.useAuthRequest({
-        // Using the provided Web Client ID for all platforms for now (works for Expo Go/Web)
-        androidClientId: '822449448774-sdn22et1o6pstrui46m060h472sbftn6.apps.googleusercontent.com',
-        iosClientId: '822449448774-eir2p1c7hh0gf0dmcjjv2svkt45ub8fr.apps.googleusercontent.com',
-        webClientId: '822449448774-eir2p1c7hh0gf0dmcjjv2svkt45ub8fr.apps.googleusercontent.com',
-        redirectUri: redirectUri
-    });
-
-    React.useEffect(() => {
-        if (response?.type === 'success') {
-            const { authentication } = response;
-            // Call backend with the ID token
-            handleGoogleAuth(authentication.accessToken);
-        }
-    }, [response]);
-
-    const handleGoogleAuth = async (token) => {
-        setLoading(true);
-        setError(null);
-        try {
-            // We need to implement this in api.js
-            const response = await api.signInWithGoogle(token);
-
-            if (response?.access_token) {
-                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-                await AsyncStorage.setItem('auth_token', response.access_token);
-                if (response.refresh_token) {
-                    await AsyncStorage.setItem('refresh_token', response.refresh_token);
-                }
-                if (onLogin) onLogin();
-            }
-        } catch (err) {
-            console.error('Google Auth error:', err);
-            setError('Google Sign In failed: ' + err.message);
-        } finally {
-            setLoading(false);
+    const renderStep = () => {
+        switch (step) {
+            case 0:
+                return (
+                    <OnboardingSlide
+                        key="step0"
+                        title="Hey..."
+                        subtitle="This is your quiet space."
+                        icon="leaf-outline"
+                    />
+                );
+            case 1:
+                return (
+                    <OnboardingSlide
+                        key="step1"
+                        title="I'm here to listen."
+                        subtitle="No judgment. No pressure.\nJust share what's on your mind."
+                        icon="ear-outline"
+                    />
+                );
+            case 2:
+                return (
+                    <OnboardingSlide
+                        key="step2"
+                        title="Safe & Private"
+                        subtitle="Your chats are private.\nYou control what I remember."
+                        icon="shield-checkmark-outline"
+                    />
+                );
+            case 3:
+                return (
+                    <OnboardingSlide
+                        key="step3"
+                        title="Let's begin"
+                        subtitle="What should I call you?"
+                        icon="person-outline"
+                    >
+                        <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.inputContainer}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter your name or nickname"
+                                placeholderTextColor={theme.colors.textQuiet}
+                                value={name}
+                                onChangeText={setName}
+                                autoCapitalize="words"
+                                autoFocus={true}
+                            />
+                            {error && <Text style={styles.errorText}>{error}</Text>}
+                        </Animated.View>
+                    </OnboardingSlide>
+                );
+            default:
+                return null;
         }
     };
 
     return (
         <ScreenWrapper>
-            <View style={styles.content}>
-                {/* Header */}
-                <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.header}>
-                    <Text style={styles.title}>Warmth</Text>
-                    <Text style={styles.subtitle}>
-                        {isLogin ? 'Welcome back' : 'Create your account'}
-                    </Text>
-                </Animated.View>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.container}
+            >
+                <View style={styles.content}>
+                    <Animated.View 
+                        key={step}
+                        entering={SlideInRight.springify().damping(20)}
+                        exiting={SlideOutLeft.springify().damping(20)}
+                        style={styles.slideWrapper}
+                    >
+                        {renderStep()}
+                    </Animated.View>
+                </View>
 
-                {/* Form */}
-                <Animated.View entering={FadeInDown.delay(400).duration(600)} style={styles.form}>
-                    {!isLogin && (
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Full Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Your name"
-                                placeholderTextColor={theme.colors.textSecondary}
-                                value={fullName}
-                                onChangeText={setFullName}
-                                autoCapitalize="words"
-                                accessibilityLabel="Full name input"
+                <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+                    <View style={styles.dots}>
+                        {[0, 1, 2, 3].map((i) => (
+                            <Animated.View
+                                key={i}
+                                style={[
+                                    styles.dot,
+                                    {
+                                        backgroundColor: i === step ? theme.colors.primary : theme.colors.border,
+                                        width: i === step ? 24 : 8,
+                                    }
+                                ]}
+                                layout={Animated.Layout.springify()}
                             />
-                        </View>
-                    )}
-
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>Email</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="name@example.com"
-                            placeholderTextColor={theme.colors.textSecondary}
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            accessibilityLabel="Email address input"
-                        />
+                        ))}
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>Password</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="••••••••"
-                            placeholderTextColor={theme.colors.textSecondary}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            accessibilityLabel="Password input"
+                    <View style={styles.buttons}>
+                        {step > 0 && (
+                            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                                <Text style={styles.backButtonText}>Back</Text>
+                            </TouchableOpacity>
+                        )}
+                        
+                        <Button
+                            title={step === 3 ? "Start Chatting" : "Continue"}
+                            onPress={handleNext}
+                            loading={loading}
+                            style={styles.nextButton}
+                            textStyle={styles.nextButtonText}
                         />
                     </View>
-
-                    {error && (
-                        <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>
-                    )}
-
-                    <Button
-                        title={isLogin ? 'Sign In' : 'Sign Up'}
-                        onPress={handleAuth}
-                        loading={loading}
-                        style={styles.mainButton}
-                    />
-
-                    <Button
-                        title="Continue with Google"
-                        variant="secondary"
-                        icon={<Ionicons name="logo-google" size={20} color={theme.colors.primary} />}
-                        onPress={() => {
-                            promptAsync();
-                        }}
-                    />
-
-                    <TouchableOpacity
-                        style={styles.switchButton}
-                        onPress={() => {
-                            setIsLogin(!isLogin);
-                            setError(null);
-                        }}
-                    >
-                        <Text style={styles.switchText}>
-                            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.devButton}
-                        onPress={handleDevLogin}
-                    >
-                        <Text style={styles.devButtonText}>
-                            Developer Login (Skip Auth)
-                        </Text>
-                    </TouchableOpacity>
-                </Animated.View>
-            </View>
+                </View>
+            </KeyboardAvoidingView>
         </ScreenWrapper>
     );
 };
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
     content: {
         flex: 1,
         justifyContent: 'center',
+        alignItems: 'center',
+    },
+    slideWrapper: {
+        width: width,
+        alignItems: 'center',
         paddingHorizontal: theme.spacing.xl,
     },
-    header: {
+    slide: {
+        width: '100%',
         alignItems: 'center',
-        marginBottom: theme.spacing.xxl,
+    },
+    slideContent: {
+        alignItems: 'center',
+        width: '100%',
+    },
+    iconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: theme.colors.surfaceWarm,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: theme.spacing.lg,
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
     },
     title: {
-        fontSize: 32,
-        fontWeight: '700',
-        color: theme.colors.primary,
         fontFamily: theme.typography.heading.fontFamily,
-        marginBottom: theme.spacing.xs,
+        fontSize: 36,
+        color: theme.colors.text,
+        textAlign: 'center',
+        marginBottom: theme.spacing.md,
     },
     subtitle: {
+        fontFamily: theme.typography.body.fontFamily,
         fontSize: 18,
         color: theme.colors.textSecondary,
-        fontFamily: theme.typography.body.fontFamily,
-    },
-    form: {
-        gap: theme.spacing.lg,
+        textAlign: 'center',
+        lineHeight: 28,
     },
     inputContainer: {
-        gap: theme.spacing.xs,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: theme.colors.text,
-        fontFamily: theme.typography.body.fontFamily,
-        marginLeft: theme.spacing.xs,
+        width: '100%',
+        marginTop: theme.spacing.xl,
     },
     input: {
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.md,
+        borderRadius: theme.borderRadius.pill,
         paddingHorizontal: theme.spacing.lg,
         paddingVertical: theme.spacing.md,
-        fontSize: 16,
+        fontSize: 18,
         color: theme.colors.text,
         fontFamily: theme.typography.body.fontFamily,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        borderColor: theme.colors.border,
+        textAlign: 'center',
         shadowColor: theme.colors.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
     },
-    mainButton: {
-        marginTop: theme.spacing.md,
-    },
-    switchButton: {
-        alignItems: 'center',
-        padding: theme.spacing.sm,
-    },
-    switchText: {
-        fontSize: 14,
-        color: theme.colors.textSecondary,
-        fontFamily: theme.typography.body.fontFamily,
-    },
     errorText: {
-        color: '#FF4444',
-        fontSize: 14,
+        color: theme.colors.error,
+        marginTop: theme.spacing.sm,
         textAlign: 'center',
-        fontFamily: theme.typography.body.fontFamily,
-    },
-    devButton: {
-        alignItems: 'center',
-        padding: theme.spacing.sm,
-        marginTop: theme.spacing.xs,
-    },
-    devButtonText: {
-        fontSize: 12,
-        color: theme.colors.textSecondary,
         fontFamily: theme.typography.caption.fontFamily,
-        textDecorationLine: 'underline',
-        opacity: 0.7,
+    },
+    footer: {
+        paddingHorizontal: theme.spacing.xl,
+        gap: theme.spacing.xl,
+    },
+    dots: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    dot: {
+        height: 8,
+        borderRadius: 4,
+    },
+    buttons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        height: 50,
+    },
+    backButton: {
+        padding: theme.spacing.sm,
+    },
+    backButtonText: {
+        fontFamily: theme.typography.button.fontFamily,
+        color: theme.colors.textSecondary,
+        fontSize: 16,
+    },
+    nextButton: {
+        flex: 1,
+        marginLeft: theme.spacing.md,
+        backgroundColor: theme.colors.primary,
+        borderRadius: theme.borderRadius.pill,
+    },
+    nextButtonText: {
+        fontFamily: theme.typography.button.fontFamily,
+        fontSize: 16,
     },
 });
 

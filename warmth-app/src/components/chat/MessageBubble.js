@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -32,25 +31,17 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
         ? FadeInUp.duration(220)
         : FadeInDown.duration(220);
 
-    // Gradient colors based on message type
-    const gradientColors = isUser
-        ? theme.colors.userBubbleGradient
-        : theme.colors.aiBubbleGradient;
-
     return (
         <Animated.View
             style={[styles.container, containerStyle]}
             entering={entering}
         >
             <Animated.View style={[styles.bubbleWrapper, animatedStyle]}>
-                <LinearGradient
-                    colors={gradientColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
+                <View
                     style={[
                         styles.bubble,
                         isUser ? styles.userBubble : styles.assistantBubble,
-                        !isUser && theme.shadows.bubble // Only AI bubble has shadow
+                        !isUser && theme.shadows.soft // Only AI bubble has shadow
                     ]}
                 >
                     <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
@@ -65,7 +56,7 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
                             })}
                         </Text>
                     )}
-                </LinearGradient>
+                </View>
             </Animated.View>
 
             {/* Emotion chips for user messages - auto-detected */}
@@ -95,7 +86,7 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
 
 const styles = StyleSheet.create({
     container: {
-        marginVertical: 4, // 8px gap between bubbles (4 top + 4 bottom)
+        marginVertical: 6,
         paddingHorizontal: theme.spacing.md,
         width: '100%',
     },
@@ -106,37 +97,38 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     bubbleWrapper: {
-        maxWidth: '75%', // Max width 75%
+        maxWidth: '80%',
     },
     bubble: {
-        borderRadius: 18, // Radius 18
-        paddingHorizontal: 16, // Padding 16h
-        paddingVertical: 14, // Padding 14v
+        borderRadius: theme.borderRadius.bubble,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
     },
     userBubble: {
-        borderWidth: 1,
-        borderColor: theme.colors.userBubbleBorder, // #E9C6BE
+        backgroundColor: theme.colors.userBubble,
         borderBottomRightRadius: 4,
     },
     assistantBubble: {
-        borderWidth: 1,
-        borderColor: theme.colors.aiBubbleBorder, // #F0D7C8
+        backgroundColor: theme.colors.aiBubble,
         borderBottomLeftRadius: 4,
+        borderWidth: 1,
+        borderColor: theme.colors.aiBubbleBorder,
     },
     messageText: {
         ...theme.typography.message,
-        color: theme.colors.text,
     },
     userText: {
-        color: theme.colors.text,
+        color: theme.colors.userBubbleText,
     },
     assistantText: {
-        color: theme.colors.text,
+        color: theme.colors.aiBubbleText,
     },
     timestamp: {
-        ...theme.typography.timestamp,
-        marginTop: 4,
+        ...theme.typography.caption,
+        fontSize: 11,
+        marginTop: 6,
         alignSelf: 'flex-end',
+        opacity: 0.7,
     },
     userTimestamp: {
         color: theme.colors.textSecondary,
@@ -149,7 +141,7 @@ const styles = StyleSheet.create({
         marginTop: theme.spacing.xs,
         gap: theme.spacing.xs,
         flexWrap: 'wrap',
-        justifyContent: 'flex-end', // Align chips to right for user
+        justifyContent: 'flex-end',
     },
     emotionChip: {
         borderRadius: 12,
@@ -158,6 +150,7 @@ const styles = StyleSheet.create({
     },
     emotionText: {
         ...theme.typography.caption,
+        fontSize: 11,
     },
 });
 

@@ -1,6 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
     Platform,
     StyleSheet,
@@ -16,7 +14,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme from '../../theme';
 
-const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€¦", disabled = false }) => {
+const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whateverâ€™s on your mindâ€¦", disabled = false }) => {
     const sendButtonScale = useSharedValue(0.8);
     const insets = useSafeAreaInsets();
 
@@ -29,7 +27,6 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
 
     const handleTextChange = (text) => {
         onChangeText(text);
-        // Animate send button when text is present
         if (text.trim()) {
             sendButtonScale.value = withSpring(1);
         } else {
@@ -42,49 +39,40 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
         opacity: sendButtonScale.value,
     }));
 
-    // Only show send button when there's text
     const showSendButton = value && value.trim().length > 0;
 
     return (
-        <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}>
-            <LinearGradient
-                colors={theme.colors.inputGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.gradientContainer}
-            >
-                <BlurView intensity={6} tint="light" style={styles.blurContainer}>
-                    <TextInput
-                        style={styles.input}
-                        placeholder={placeholder}
-                        placeholderTextColor={theme.colors.textQuiet}
-                        value={value}
-                        onChangeText={handleTextChange}
-                        multiline
-                        maxLength={1000}
-                        editable={!disabled}
-                        returnKeyType="send"
-                        onSubmitEditing={handleSend}
-                        blurOnSubmit={false}
-                    />
+        <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 24 }]}>
+            <View style={[styles.inputContainer, theme.shadows.soft]}>
+                <TextInput
+                    style={styles.input}
+                    placeholder={placeholder}
+                    placeholderTextColor={theme.colors.textQuiet}
+                    value={value}
+                    onChangeText={handleTextChange}
+                    multiline
+                    maxLength={1000}
+                    editable={!disabled}
+                    returnKeyType="default" // "send" often closes keyboard on iOS, default keeps it open for multiline
+                    blurOnSubmit={false}
+                />
 
-                    {showSendButton && (
-                        <Animated.View style={[styles.sendButtonWrapper, sendButtonStyle]}>
-                            <TouchableOpacity
-                                onPress={handleSend}
-                                disabled={!value.trim() || disabled}
-                                style={styles.sendButton}
-                            >
-                                <Ionicons
-                                    name="arrow-up"
-                                    size={20}
-                                    color="#FFF"
-                                />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
-                </BlurView>
-            </LinearGradient>
+                {showSendButton && (
+                    <Animated.View style={[styles.sendButtonWrapper, sendButtonStyle]}>
+                        <TouchableOpacity
+                            onPress={handleSend}
+                            disabled={!value.trim() || disabled}
+                            style={styles.sendButton}
+                        >
+                            <Ionicons
+                                name="arrow-up"
+                                size={20}
+                                color="#FFF"
+                            />
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
+            </View>
         </View>
     );
 };
@@ -94,18 +82,16 @@ const styles = StyleSheet.create({
         paddingHorizontal: theme.spacing.md,
         paddingTop: theme.spacing.sm,
     },
-    gradientContainer: {
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: theme.colors.inputBorder,
-    },
-    blurContainer: {
+    inputContainer: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        paddingHorizontal: 18,
-        paddingVertical: 14,
+        backgroundColor: theme.colors.inputBackground,
+        borderRadius: theme.borderRadius.pill,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
         minHeight: 56,
+        borderWidth: 1,
+        borderColor: theme.colors.inputBorder,
     },
     input: {
         flex: 1,
@@ -113,13 +99,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: theme.colors.text,
         maxHeight: 120,
-        paddingTop: 0,
-        paddingBottom: 0,
+        paddingTop: Platform.OS === 'ios' ? 6 : 0,
+        paddingBottom: Platform.OS === 'ios' ? 6 : 0,
         marginRight: theme.spacing.sm,
-        outlineStyle: 'none',
     },
     sendButtonWrapper: {
-        marginBottom: 2,
+        marginBottom: 4,
     },
     sendButton: {
         width: 32,
@@ -128,11 +113,6 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: theme.colors.primary,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 2,
     },
 });
 
