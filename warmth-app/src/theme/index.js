@@ -1,197 +1,172 @@
-// Warmth AI Design System - Final Polish
-// Mature, warm, premium companion UI
-import { Platform } from 'react-native';
+// Warmth AI Design System - Phase 2 (Brand Identity)
+// "A quiet room, a warm light, a cozy blanket."
 
-// Color Palette - Refined & Softer
+
+// Color Palette - Warm, Soft, Human
+// Based on: Peach, Soft Lavender, Pastel Blue, Beige, Warm Brown
 export const colors = {
-    // Softer background gradient (Strictly Pink/Rose/Peach - NO YELLOW)
-    background: '#FFF0F5',
-    backgroundGradient: ['#FFF0F5', '#FFE4E1', '#FFDAB9'], // Lavender Blush -> Misty Rose -> Peach Puff
-    headerGradient: ['#FFB7B2', '#FF9E9E'], // Rose -> Salmon
-
-    // Surface
+    // Backgrounds
+    background: '#FFF5F1', // Very soft peach/beige
+    backgroundGradient: ['#FFF5F1', '#FFF0F5', '#E6E6FA'], // Peach -> Lavender Mist -> Soft Lavender
+    
+    // Surface (Cards, Bubbles)
     surface: '#FFFFFF',
-    surfaceWarm: '#FFF5EF',
-    surfaceGlass: 'rgba(255, 255, 255, 0.5)',
-
-    // Chat Bubbles - Reduced opacity for better readability
-    userBubbleGradient: ['rgba(255, 223, 230, 0.6)', 'rgba(255, 244, 224, 0.6)'], // 0.8 → 0.6
-    userBubbleBorder: 'rgba(196, 116, 84, 0.08)', // Much subtler
-
-    aiBubbleGradient: ['rgba(255, 239, 229, 0.6)', 'rgba(255, 232, 240, 0.6)'], // 0.75 → 0.6
-    aiBubbleBorder: 'rgba(196, 116, 84, 0.08)', // Much subtler
-
-    // Input Bar - Reduced gradient intensity
-    inputGradient: ['rgba(255, 228, 236, 0.55)', 'rgba(255, 244, 220, 0.55)'],
-    inputBorder: 'rgba(255, 255, 255, 0.35)',
-
-    // Accents
-    primary: '#C97454', // Terracotta
-    secondary: '#9A8D86', // Muted Warm Grey
-    accent: '#C97454',
-
-    // Text hierarchy - Better contrast (4.5:1 minimum)
-    text: '#2B2B2B', // Darker for better contrast
-    textSecondary: '#9A8D86',
-    textQuiet: '#B6AAA4', // Darker placeholder
+    surfaceWarm: '#FFF9F5',
+    surfaceGlass: 'rgba(255, 255, 255, 0.7)',
+    
+    // Primary Brand Colors
+    primary: '#8D6E63', // Warm Brown (Earth/Stable)
+    primarySoft: '#D7CCC8', // Light Warm Brown
+    accent: '#FFB7B2', // Soft Salmon/Peach (The "Spark")
+    
+    // Text - Never pure black
+    text: '#4E342E', // Dark Brown (Softer than black)
+    textSecondary: '#8D6E63', // Medium Brown
+    textQuiet: '#BCAAA4', // Light Brown (Placeholder)
     textInverse: '#FFFFFF',
 
-    // Emotion chips
+    // Chat Bubbles
+    userBubble: '#FBE9E7', // Deep Nude/Peach
+    userBubbleText: '#4E342E',
+    
+    aiBubble: '#FFFFFF',
+    aiBubbleText: '#4E342E',
+    aiBubbleBorder: 'rgba(141, 110, 99, 0.1)', // Very subtle brown border
+
+    // Input
+    inputBackground: '#FFFFFF',
+    inputBorder: 'rgba(141, 110, 99, 0.15)',
+
+    // Status/Emotions (Pastel, not neon)
     emotion: {
-        happy: { bg: '#FFF9E6', text: '#B8860B' },
-        sad: { bg: '#E6F2FF', text: '#4A90E2' },
-        anxious: { bg: '#F0E6FF', text: '#8B6BA8' },
-        calm: { bg: '#E6FFF9', text: '#4A9B8A' },
-        tired: { bg: '#F5F5F5', text: '#666666' },
-        proud: { bg: '#FFE6F0', text: '#CD2C58' },
-        neutral: { bg: '#F5F5F5', text: '#666666' },
+        happy: { bg: '#FFF3E0', text: '#EF6C00' }, // Soft Orange
+        sad: { bg: '#E3F2FD', text: '#1565C0' },   // Soft Blue
+        anxious: { bg: '#F3E5F5', text: '#7B1FA2' }, // Soft Purple
+        calm: { bg: '#E0F2F1', text: '#00695C' },   // Soft Teal
+        tired: { bg: '#FAFAFA', text: '#616161' },  // Soft Grey
+        proud: { bg: '#FCE4EC', text: '#C2185B' },  // Soft Pink
+        neutral: { bg: '#F5F5F5', text: '#757575' },
     },
 
-    // Borders
-    border: '#E9C6BE',
-    borderLight: 'rgba(233, 198, 190, 0.4)',
+    // UI Elements
+    border: '#EFEBE9',
+    borderLight: 'rgba(141, 110, 99, 0.1)',
+    
+    // Functional
+    error: '#EF9A9A', // Soft Red
+    success: '#A5D6A7', // Soft Green
 };
 
-// Typography - Inter font with 1.45 line-height
+// Typography - Warm, Premium Font Stack
 export const typography = {
-    fontFamily: 'Inter_400Regular',
-    letterSpacing: 0.3,
-    lineHeight: 1.45,
+    // Font Families
+    headingFont: 'Poppins_600SemiBold', // Logo + Navbar Title
+    bodyFont: 'Nunito_400Regular', // Quote under navbar
+    chatFont: 'Quicksand_400Regular', // Chat bubbles + input
+    buttonFont: 'Poppins_500Medium', // Buttons (Sign Up, Send)
+    bodyFontMedium: 'Nunito_600SemiBold',
+    bodyFontBold: 'Nunito_700Bold',
 
+    // Styles
     heading: {
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', // Serif for logo only
-        fontSize: 24, // Reduced from 26
-        fontWeight: '600',
-        lineHeight: 32,
-        letterSpacing: 0.3, // Reduced
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 32,
+        lineHeight: 40,
         color: colors.text,
+        letterSpacing: -0.5,
     },
-
+    
     subheading: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: 18,
-        fontWeight: '600',
-        lineHeight: 26.1, // 1.45 ratio
-        letterSpacing: 0.2,
+        fontFamily: 'Nunito_600SemiBold',
+        fontSize: 20,
+        lineHeight: 28,
         color: colors.text,
+        letterSpacing: 0.1,
     },
 
     body: {
-        fontFamily: 'Inter_400Regular',
-        fontSize: 16,
-        lineHeight: 23.2, // 1.45 ratio
-        letterSpacing: 0.3,
+        fontFamily: 'Nunito_400Regular',
+        fontSize: 17, // Slightly larger for readability
+        lineHeight: 26,
         color: colors.text,
     },
 
     message: {
-        fontFamily: 'Inter_400Regular',
-        fontSize: 16,
-        lineHeight: 23.2, // 1.45 ratio
-        letterSpacing: 0.3,
+        fontFamily: 'Quicksand_400Regular', // Soft, cozy, emotional
+        fontSize: 17,
+        lineHeight: 26,
         color: colors.text,
     },
 
     caption: {
-        fontFamily: 'Inter_400Regular',
-        fontSize: 12,
-        lineHeight: 17.4, // 1.45 ratio
-        letterSpacing: 0.2,
+        fontFamily: 'Nunito_400Regular',
+        fontSize: 13,
+        lineHeight: 18,
         color: colors.textSecondary,
-    },
-
-    timestamp: {
-        fontFamily: 'Inter_400Regular',
-        fontSize: 11,
-        lineHeight: 16, // 1.45 ratio
-        color: colors.textSecondary,
-        opacity: 0, // Hidden by default
     },
 
     button: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'Poppins_500Medium', // Clean & modern
+        fontSize: 16,
         letterSpacing: 0.5,
+        color: colors.textInverse,
     },
 };
 
-// Spacing scale
+// Spacing - Generous, Breathable
 export const spacing = {
-    xs: 4,
-    sm: 8,
+    xs: 6,
+    sm: 12,
+    md: 20, // Increased from 16
+    lg: 32,
+    xl: 48,
+    xxl: 64,
+};
+
+// Border Radius - Soft, Round
+export const borderRadius = {
+    sm: 12,
     md: 16,
     lg: 24,
     xl: 32,
-    xxl: 48,
-};
-
-// Border radius
-export const borderRadius = {
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 20,
-    bubble: 18,
+    bubble: 24, // Very round bubbles
     pill: 999,
 };
 
-// Refined shadows - Very subtle
+// Shadows - Organic, Diffused
 export const shadows = {
-    bubble: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03, // Very subtle
-        shadowRadius: 6,
-        elevation: 2,
-    },
-    card: {
-        shadowColor: '#C97454',
+    soft: {
+        shadowColor: '#8D6E63',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowRadius: 16,
         elevation: 3,
     },
-    icon: {
-        shadowColor: '#C97454',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
+    float: {
+        shadowColor: '#8D6E63',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 24,
+        elevation: 6,
+    },
+    none: {
+        shadowOpacity: 0,
+        elevation: 0,
     },
 };
 
-// Animation configurations - Gentler
+// Animation Configs - Slow, Gentle
 export const animations = {
     timing: {
-        fast: 220, // Reduced from 200
-        normal: 300,
-        slow: 500,
+        fast: 300,
+        normal: 500, // Slower default
+        slow: 800,
     },
     spring: {
-        damping: 20, // Less bouncy
-        stiffness: 120, // Softer
+        damping: 30, // No bounce, just smooth arrival
+        stiffness: 90, // Soft spring
+        mass: 1,
     },
-    easing: 'ease-out', // Gentler easing
-};
-
-// Breakpoints
-export const breakpoints = {
-    small: 320,
-    medium: 375,
-    large: 414,
-    xlarge: 768,
-    messageColumn: 820, // Max width for centered messages
-};
-
-// Helper function to get gradient colors
-export const getGradient = (type) => {
-    switch (type) {
-        case 'background':
-            return colors.backgroundGradient;
-        default:
-            return colors.backgroundGradient;
-    }
 };
 
 export default {
@@ -201,6 +176,4 @@ export default {
     borderRadius,
     shadows,
     animations,
-    breakpoints,
-    getGradient,
 };

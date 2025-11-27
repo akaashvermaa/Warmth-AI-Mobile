@@ -178,6 +178,7 @@ const JournalsScreen = ({ navigation }) => {
             }
         } catch (error) {
             console.error('Failed to load mood history:', error);
+            setMoodHistory([]); // Set empty array on error
         }
     };
 
@@ -191,6 +192,7 @@ const JournalsScreen = ({ navigation }) => {
             }
         } catch (error) {
             console.error('Failed to load journals:', error);
+            setJournals([]); // Set empty array on error
         }
     };
 

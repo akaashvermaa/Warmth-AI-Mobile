@@ -1,6 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
     Platform,
     StyleSheet,
@@ -11,13 +9,15 @@ import {
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
-    withSpring
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme from '../../theme';
 
-const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€¦", disabled = false }) => {
+const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whatever's on your mindâ€¦", disabled = false }) => {
     const sendButtonScale = useSharedValue(0.8);
+    const inputGlow = useSharedValue(0.08); // Glow intensity
     const insets = useSafeAreaInsets();
 
     const handleSend = () => {
@@ -29,11 +29,12 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
 
     const handleTextChange = (text) => {
         onChangeText(text);
-        // Animate send button when text is present
         if (text.trim()) {
             sendButtonScale.value = withSpring(1);
+            inputGlow.value = withTiming(0.15, { duration: 300 }); // Gentle glow when typing
         } else {
             sendButtonScale.value = withSpring(0.8);
+            inputGlow.value = withTiming(0.08, { duration: 300 }); // Return to normal
         }
     };
 
@@ -42,49 +43,44 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Talk to Warmthâ€
         opacity: sendButtonScale.value,
     }));
 
-    // Only show send button when there's text
+    const inputContainerStyle = useAnimatedStyle(() => ({
+        shadowOpacity: inputGlow.value,
+    }));
+
     const showSendButton = value && value.trim().length > 0;
 
     return (
-        <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}>
-            <LinearGradient
-                colors={theme.colors.inputGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.gradientContainer}
-            >
-                <BlurView intensity={6} tint="light" style={styles.blurContainer}>
-                    <TextInput
-                        style={styles.input}
-                        placeholder={placeholder}
-                        placeholderTextColor={theme.colors.textQuiet}
-                        value={value}
-                        onChangeText={handleTextChange}
-                        multiline
-                        maxLength={1000}
-                        editable={!disabled}
-                        returnKeyType="send"
-                        onSubmitEditing={handleSend}
-                        blurOnSubmit={false}
-                    />
+        <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 24 }]}>
+            <Animated.View style={[styles.inputContainer, inputContainerStyle]}>
+                <TextInput
+                    style={styles.input}
+                    placeholder={placeholder}
+                    placeholderTextColor={theme.colors.textQuiet}
+                    value={value}
+                    onChangeText={handleTextChange}
+                    multiline
+                    maxLength={1000}
+                    editable={!disabled}
+                    returnKeyType="default"
+                    blurOnSubmit={false}
+                />
 
-                    {showSendButton && (
-                        <Animated.View style={[styles.sendButtonWrapper, sendButtonStyle]}>
-                            <TouchableOpacity
-                                onPress={handleSend}
-                                disabled={!value.trim() || disabled}
-                                style={styles.sendButton}
-                            >
-                                <Ionicons
-                                    name="arrow-up"
-                                    size={20}
-                                    color="#FFF"
-                                />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
-                </BlurView>
-            </LinearGradient>
+                {showSendButton && (
+                    <Animated.View style={[styles.sendButtonWrapper, sendButtonStyle]}>
+                        <TouchableOpacity
+                            onPress={handleSend}
+                            disabled={!value.trim() || disabled}
+                            style={styles.sendButton}
+                        >
+                            <Ionicons
+                                name="arrow-up-circle"
+                                size={24}
+                                color="#FFF"
+                            />
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
+            </Animated.View>
         </View>
     );
 };
@@ -94,45 +90,54 @@ const styles = StyleSheet.create({
         paddingHorizontal: theme.spacing.md,
         paddingTop: theme.spacing.sm,
     },
-    gradientContainer: {
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: theme.colors.inputBorder,
-    },
-    blurContainer: {
+    inputContainer: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        paddingHorizontal: 18,
-        paddingVertical: 14,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: theme.borderRadius.pill,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
         minHeight: 56,
+        borderWidth: 0,
+        borderColor: 'transparent', // Ensure no border color
+        shadowColor: '#FF8A80',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08, // Will be animated
+        shadowRadius: 12,
+        elevation: 3,
+        // Android-specific: remove outline
+        ...(Platform.OS === 'android' && {
+            overflow: 'hidden',
+        }),
     },
     input: {
         flex: 1,
-        fontFamily: theme.typography.body.fontFamily,
+        fontFamily: theme.typography.chatFont,
         fontSize: 16,
         color: theme.colors.text,
         maxHeight: 120,
-        paddingTop: 0,
-        paddingBottom: 0,
+        paddingTop: Platform.OS === 'ios' ? 6 : 0,
+        paddingBottom: Platform.OS === 'ios' ? 6 : 0,
         marginRight: theme.spacing.sm,
+        // Remove any default outlines
         outlineStyle: 'none',
+        borderWidth: 0,
     },
     sendButtonWrapper: {
-        marginBottom: 2,
+        marginBottom: 4,
     },
     sendButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: theme.colors.primary,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FF8A80',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: theme.colors.primary,
+        shadowColor: '#FF8A80',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.3,
         shadowRadius: 4,
-        elevation: 2,
+        elevation: 3,
     },
 });
 

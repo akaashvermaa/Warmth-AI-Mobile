@@ -16,20 +16,19 @@ const TypingIndicator = () => {
     const dot3 = useSharedValue(0);
 
     useEffect(() => {
-        // Staggered animation for each dot
         dot1.value = withRepeat(
             withSequence(
-                withTiming(1, { duration: 400 }),
-                withTiming(0, { duration: 400 })
+                withTiming(1, { duration: 600 }),
+                withTiming(0, { duration: 600 })
             ),
-            -1, // Infinite
+            -1,
             false
         );
 
         dot2.value = withRepeat(
             withSequence(
-                withDelay(133, withTiming(1, { duration: 400 })),
-                withTiming(0, { duration: 400 })
+                withDelay(200, withTiming(1, { duration: 600 })),
+                withTiming(0, { duration: 600 })
             ),
             -1,
             false
@@ -37,8 +36,8 @@ const TypingIndicator = () => {
 
         dot3.value = withRepeat(
             withSequence(
-                withDelay(266, withTiming(1, { duration: 400 })),
-                withTiming(0, { duration: 400 })
+                withDelay(400, withTiming(1, { duration: 600 })),
+                withTiming(0, { duration: 600 })
             ),
             -1,
             false
@@ -47,22 +46,22 @@ const TypingIndicator = () => {
 
     const animatedStyle1 = useAnimatedStyle(() => ({
         opacity: 0.3 + (dot1.value * 0.7),
-        transform: [{ translateY: -dot1.value * 4 }],
+        transform: [{ translateY: -dot1.value * 3 }],
     }));
 
     const animatedStyle2 = useAnimatedStyle(() => ({
         opacity: 0.3 + (dot2.value * 0.7),
-        transform: [{ translateY: -dot2.value * 4 }],
+        transform: [{ translateY: -dot2.value * 3 }],
     }));
 
     const animatedStyle3 = useAnimatedStyle(() => ({
         opacity: 0.3 + (dot3.value * 0.7),
-        transform: [{ translateY: -dot3.value * 4 }],
+        transform: [{ translateY: -dot3.value * 3 }],
     }));
 
     return (
         <View style={styles.container}>
-            <View style={styles.bubble}>
+            <View style={[styles.bubble, theme.shadows.soft]}>
                 <Animated.View style={[styles.dot, animatedStyle1]} />
                 <Animated.View style={[styles.dot, animatedStyle2]} />
                 <Animated.View style={[styles.dot, animatedStyle3]} />
@@ -73,28 +72,25 @@ const TypingIndicator = () => {
 
 const styles = StyleSheet.create({
     container: {
-        marginVertical: theme.spacing.sm,
+        marginVertical: 6,
         paddingHorizontal: theme.spacing.md,
         alignItems: 'flex-start',
     },
     bubble: {
         flexDirection: 'row',
-        backgroundColor: theme.colors.surface,
-        borderRadius: 20,
+        backgroundColor: theme.colors.aiBubble,
+        borderRadius: theme.borderRadius.bubble,
         borderBottomLeftRadius: 4,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm + 2,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
         gap: 6,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        borderWidth: 1,
+        borderColor: theme.colors.aiBubbleBorder,
     },
     dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        width: 6,
+        height: 6,
+        borderRadius: 3,
         backgroundColor: theme.colors.textSecondary,
     },
 });

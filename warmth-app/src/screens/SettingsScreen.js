@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import React, { useState } from 'react';
 import {
+    Alert,
     ScrollView,
     StyleSheet,
     Switch,
@@ -9,7 +9,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import Header from '../components/common/Header';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenWrapper from '../components/common/ScreenWrapper';
 import api from '../services/api';
 import theme from '../theme';
@@ -17,10 +17,8 @@ import theme from '../theme';
 const Section = React.memo(({ title, children }) => (
     <View style={styles.section}>
         <Text style={styles.sectionTitle}>{title}</Text>
-        <View style={styles.sectionContentWrapper}>
-            <BlurView intensity={20} tint="light" style={styles.sectionContent}>
-                {children}
-            </BlurView>
+        <View style={[styles.sectionContent, theme.shadows.soft]}>
+            {children}
         </View>
     </View>
 ));
@@ -31,13 +29,9 @@ const SettingItem = React.memo(({ label, value, type = 'arrow', onPress, danger 
         onPress={onPress}
         disabled={type === 'switch'}
         activeOpacity={0.7}
-        accessibilityLabel={label}
-        accessibilityRole="button"
-        accessibilityHint={`Tap to ${label.toLowerCase()}`}
-        accessibilityState={{ disabled: type === 'switch' }}
     >
         <View style={styles.settingLeft}>
-            {icon && <Ionicons name={icon} size={20} color={danger ? theme.colors.primary : theme.colors.textSecondary} style={styles.settingIcon} />}
+            {icon && <Ionicons name={icon} size={20} color={danger ? theme.colors.error : theme.colors.textSecondary} style={styles.settingIcon} />}
             <Text style={[styles.settingLabel, danger && styles.dangerText]}>{label}</Text>
         </View>
 
@@ -51,7 +45,7 @@ const SettingItem = React.memo(({ label, value, type = 'arrow', onPress, danger 
         )}
 
         {type === 'arrow' && (
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.textQuiet} />
         )}
 
         {type === 'value' && (
@@ -60,147 +54,109 @@ const SettingItem = React.memo(({ label, value, type = 'arrow', onPress, danger 
     </TouchableOpacity>
 ));
 
-import { useFocusEffect } from '@react-navigation/native';
-
 const SettingsScreen = ({ navigation, onLogout }) => {
     const [settings, setSettings] = useState({
-        theme: 'light',
         notifications_enabled: true,
         sound_enabled: true,
         haptic_enabled: true
     });
-    const [userProfile, setUserProfile] = useState(null);
-    const [memoryCount, setMemoryCount] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const insets = useSafeAreaInsets();
 
-    useFocusEffect(
-        React.useCallback(() => {
-            fetchData();
-        }, [])
-    );
-
-    const fetchData = async () => {
-        try {
-            // Fetch profile separately so it doesn't fail if other endpoints are down
-            try {
-                const profileData = await api.getUserProfile();
-                if (profileData?.user) setUserProfile(profileData.user);
-            } catch (e) {
-                console.error('Profile fetch failed:', e);
-            }
-
-            // Fetch settings
-            try {
-                const settingsData = await api.getPreferences();
-                if (settingsData) setSettings(settingsData);
-            } catch (e) {
-                console.warn('Settings fetch failed (tables might be missing):', e);
-            }
-
-            // Fetch export data (memory count)
-            try {
-                const exportData = await api.exportAllData();
-                setMemoryCount(exportData.memories?.length || 0);
-            } catch (e) {
-                console.warn('Export fetch failed:', e);
-            }
-
-        } catch (error) {
-            console.error('General fetch error:', error);
-        } finally {
-            setLoading(false);
-        }
+    const handleClearMemory = () => {
+        Alert.alert(
+            "Clear All Memories?",
+            "This will delete all emotional patterns Warmth has learned. This action cannot be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                { 
+                    text: "Delete Everything", 
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await api.eraseAllData();
+                            Alert.alert("Success", "All memories have been cleared.");
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to clear memories.");
+                        }
+                    }
+                }
+            ]
+        );
     };
 
-    const updateSetting = async (key, value) => {
-        // Optimistic update
-        const newSettings = { ...settings, [key]: value };
-        setSettings(newSettings);
-
+    const handleExportData = async () => {
         try {
-            await api.updateUserSettings({ [key]: value });
+            // In a real app, this would generate a file and share it
+            // For now, we just call the API and show a success message
+            await api.exportAllData();
+            Alert.alert("Export Ready", "Your data has been prepared. (Feature in progress)");
         } catch (error) {
-            console.error('Failed to save setting:', error);
-            // Revert on failure
-            setSettings(settings);
-            // Alert.alert('Error', 'Failed to save setting');
-        }
-    };
-
-    const handleLogout = async () => {
-        // Direct logout without confirmation to ensure it works
-        try {
-            api.signOut().catch(err => console.warn('Server signout warning:', err));
-        } finally {
-            if (onLogout) onLogout();
+            Alert.alert("Error", "Failed to export data.");
         }
     };
 
     return (
         <ScreenWrapper>
-            <Header title="Settings" showBack />
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Privacy & Memories</Text>
+                <View style={{ width: 24 }} />
+            </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                
+                {/* Privacy Assurance */}
+                <View style={styles.privacyCard}>
+                    <Ionicons name="shield-checkmark-outline" size={32} color={theme.colors.primary} style={styles.privacyIcon} />
+                    <Text style={styles.privacyTitle}>Your Safe Space</Text>
+                    <Text style={styles.privacyText}>
+                        Warmth remembers emotional patterns to respond better. 
+                        We never use your data for ads or resale. 
+                        You are always in control.
+                    </Text>
+                </View>
 
-                {/* Account Section */}
+                {/* Memory Controls */}
+                <Section title="Data Control">
+                    <SettingItem
+                        label="Export My Data"
+                        onPress={handleExportData}
+                        icon="download-outline"
+                    />
+                    <SettingItem
+                        label="Clear All Memories"
+                        onPress={handleClearMemory}
+                        danger
+                        icon="trash-outline"
+                    />
+                </Section>
+
+                {/* Account */}
                 <Section title="Account">
                     <SettingItem
-                        label="Email"
-                        value={userProfile?.email || 'No email found'}
-                        type="value"
-                        icon="mail-outline"
-                    />
-                    <SettingItem
-                        label="Memories Linked"
-                        value={loading ? '...' : `${memoryCount || 0}`}
-                        type="value"
-                        icon="heart-outline"
-                    />
-                    <SettingItem
                         label="Log Out"
-                        onPress={handleLogout}
+                        onPress={onLogout}
                         danger
                         icon="log-out-outline"
                     />
                 </Section>
 
-                {/* Preferences */}
+                {/* Preferences (Collapsed/Smaller) */}
                 <Section title="Preferences">
                     <SettingItem
                         label="Notifications"
                         type="switch"
                         value={settings.notifications_enabled}
-                        onPress={(val) => updateSetting('notifications_enabled', val)}
+                        onPress={() => setSettings(s => ({...s, notifications_enabled: !s.notifications_enabled}))}
                         icon="notifications-outline"
-                    />
-                    <SettingItem
-                        label="Sounds"
-                        type="switch"
-                        value={settings.sound_enabled}
-                        onPress={(val) => updateSetting('sound_enabled', val)}
-                        icon="volume-high-outline"
-                    />
-                    <SettingItem
-                        label="Haptics"
-                        type="switch"
-                        value={settings.haptic_enabled}
-                        onPress={(val) => updateSetting('haptic_enabled', val)}
-                        icon="finger-print-outline"
-                    />
-                </Section>
-
-                {/* App Info */}
-                <Section title="App">
-                    <SettingItem
-                        label="Version"
-                        value="1.0.0"
-                        type="value"
-                        icon="information-circle-outline"
                     />
                 </Section>
 
                 <View style={styles.footer}>
-                    <Text style={styles.footerText}>Warmth AI • Made with ❤️</Text>
+                    <Text style={styles.footerText}>Warmth AI v1.0.0</Text>
                 </View>
 
             </ScrollView>
@@ -209,6 +165,21 @@ const SettingsScreen = ({ navigation, onLogout }) => {
 };
 
 const styles = StyleSheet.create({
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: theme.spacing.md,
+        paddingBottom: theme.spacing.md,
+    },
+    headerTitle: {
+        fontFamily: theme.typography.heading.fontFamily,
+        fontSize: 24,
+        color: theme.colors.text,
+    },
+    backButton: {
+        padding: 4,
+    },
     scrollView: {
         flex: 1,
     },
@@ -216,28 +187,50 @@ const styles = StyleSheet.create({
         padding: theme.spacing.md,
         paddingBottom: theme.spacing.xxl,
     },
+    privacyCard: {
+        backgroundColor: theme.colors.surfaceWarm,
+        borderRadius: theme.borderRadius.lg,
+        padding: theme.spacing.lg,
+        alignItems: 'center',
+        marginBottom: theme.spacing.xl,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    privacyIcon: {
+        marginBottom: theme.spacing.sm,
+        opacity: 0.8,
+    },
+    privacyTitle: {
+        fontFamily: theme.typography.subheading.fontFamily,
+        fontSize: 18,
+        color: theme.colors.text,
+        marginBottom: theme.spacing.xs,
+    },
+    privacyText: {
+        fontFamily: theme.typography.body.fontFamily,
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
     section: {
         marginBottom: theme.spacing.xl,
     },
     sectionTitle: {
-        fontSize: 14,
-        fontWeight: '600',
+        fontFamily: theme.typography.caption.fontFamily,
+        fontSize: 13,
         color: theme.colors.textSecondary,
         marginBottom: theme.spacing.sm,
         marginLeft: theme.spacing.xs,
         textTransform: 'uppercase',
         letterSpacing: 1,
-        fontFamily: theme.typography.caption.fontFamily,
     },
-    sectionContentWrapper: {
+    sectionContent: {
+        backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: theme.colors.borderLight,
-        backgroundColor: theme.colors.surfaceGlass,
-    },
-    sectionContent: {
-        // No padding here as items have their own padding
+        borderColor: theme.colors.border,
     },
     settingItem: {
         flexDirection: 'row',
@@ -246,39 +239,34 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.03)',
+        borderBottomColor: theme.colors.border,
     },
     settingLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
     },
-    settingIcon: {
-        opacity: 0.8,
-    },
     settingLabel: {
+        fontFamily: theme.typography.body.fontFamily,
         fontSize: 16,
         color: theme.colors.text,
-        fontFamily: theme.typography.body.fontFamily,
     },
     settingValue: {
+        fontFamily: theme.typography.body.fontFamily,
         fontSize: 14,
         color: theme.colors.textSecondary,
-        fontFamily: theme.typography.body.fontFamily,
     },
     dangerText: {
-        color: theme.colors.primary,
+        color: theme.colors.error,
     },
     footer: {
         alignItems: 'center',
         marginTop: theme.spacing.lg,
-        marginBottom: theme.spacing.xl,
     },
     footerText: {
-        fontSize: 12,
-        color: theme.colors.textSecondary,
-        opacity: 0.6,
         fontFamily: theme.typography.caption.fontFamily,
+        fontSize: 12,
+        color: theme.colors.textQuiet,
     },
 });
 
