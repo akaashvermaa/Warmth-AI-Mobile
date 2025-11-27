@@ -277,7 +277,13 @@ def signout():
         supabase: Client = current_app.supabase
 
         # Sign out user with Supabase
-        result = supabase.auth.sign_out(jwt_token)
+        try:
+            # User requested: supabase.auth.sign_out({"refresh_token": token})
+            # But we only have access_token here. 
+            # Passing string causes crash. Calling without args attempts to use client session.
+            supabase.auth.sign_out()
+        except Exception as auth_error:
+            logger.warning(f"Supabase sign_out error (non-fatal): {auth_error}")
 
         logger.info("User signed out successfully")
         return jsonify({

@@ -18,7 +18,8 @@ app = create_app()
 if __name__ == "__main__":
     # Get config from the app's config object
     debug_mode = app.config.get('FLASK_DEBUG', False)
-    port = int(app.config.get('FLASK_PORT', 5001))
+    # Bind to $PORT if set (for Render/Heroku), otherwise default to 5001
+    port = int(os.getenv('PORT', app.config.get('FLASK_PORT', 5001)))
     
     app.logger.info(f"--- Starting Warmth Server at http://127.0.0.1:{port} ---")
     app.logger.info(f"Debug mode: {debug_mode}")

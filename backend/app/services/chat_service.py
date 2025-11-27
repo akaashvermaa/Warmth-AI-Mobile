@@ -310,7 +310,12 @@ class ChatService:
         facts = self._get_memories_for_context(user_input)
 
         # Build system prompt with clean, minimal, modern personality
-        enhanced_system_prompt = (
+        # Build system prompt with clean, minimal, modern personality
+        enhanced_system_prompt = self._build_prompt(current_mood, facts)
+
+    def _build_prompt(self, current_mood: str, facts: str) -> str:
+        """Builds the system prompt with personality and context."""
+        return (
             "You are Warmth, a calm and supportive AI companion. "
             "CRITICAL RULES:\n"
             "- Keep ALL replies to 1-3 short sentences maximum\n"
@@ -428,19 +433,8 @@ class ChatService:
             facts = self._get_memories_for_context(user_input)
 
             # Build system prompt
-            enhanced_system_prompt = (
-                "You are Warmth, a calm and supportive AI companion. "
-                "CRITICAL RULES:\n"
-                "- Keep ALL replies to 1-3 short sentences maximum\n"
-                "- NEVER use pet names (no 'sweetheart', 'dear', 'love', 'darling', etc.)\n"
-                "- NEVER use poetic or flowery language\n"
-                "- Be conversational and natural, like texting a friend\n"
-                "- Focus on listening and understanding, not expressing affection\n"
-                "- Ask follow-up questions instead of giving long responses\n"
-                "- Be emotionally supportive but grounded and modern\n"
-                "- Avoid dramatic phrases or monologues\n"
-                f"Current Mood: {current_mood}. User Facts: {facts}\n\n"
-            )
+            # Build system prompt
+            enhanced_system_prompt = self._build_prompt(current_mood, facts)
 
             messages = [
                 {"role": "system", "content": enhanced_system_prompt},
