@@ -57,17 +57,19 @@ export const colors = {
     success: '#A5D6A7', // Soft Green
 };
 
-// Typography - Cormorant Garamond (Headings) + Nunito (Body)
+// Typography - Warm, Premium Font Stack
 export const typography = {
     // Font Families
-    headingFont: 'CormorantGaramond_600SemiBold',
-    bodyFont: 'Nunito_400Regular',
+    headingFont: 'Poppins_600SemiBold', // Logo + Navbar Title
+    bodyFont: 'Nunito_400Regular', // Quote under navbar
+    chatFont: 'Quicksand_400Regular', // Chat bubbles + input
+    buttonFont: 'Poppins_500Medium', // Buttons (Sign Up, Send)
     bodyFontMedium: 'Nunito_600SemiBold',
     bodyFontBold: 'Nunito_700Bold',
 
     // Styles
     heading: {
-        fontFamily: 'CormorantGaramond_600SemiBold',
+        fontFamily: 'Poppins_600SemiBold',
         fontSize: 32,
         lineHeight: 40,
         color: colors.text,
@@ -90,7 +92,7 @@ export const typography = {
     },
 
     message: {
-        fontFamily: 'Nunito_400Regular',
+        fontFamily: 'Quicksand_400Regular', // Soft, cozy, emotional
         fontSize: 17,
         lineHeight: 26,
         color: colors.text,
@@ -104,7 +106,7 @@ export const typography = {
     },
 
     button: {
-        fontFamily: 'Nunito_700Bold',
+        fontFamily: 'Poppins_500Medium', // Clean & modern
         fontSize: 16,
         letterSpacing: 0.5,
         color: colors.textInverse,

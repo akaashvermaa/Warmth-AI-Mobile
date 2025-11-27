@@ -21,7 +21,7 @@ import InputBar from '../components/chat/InputBar';
 import MessageBubble from '../components/chat/MessageBubble';
 import TypingIndicator from '../components/chat/TypingIndicator';
 import TopRightIcons from '../components/navigation/TopRightIcons';
-import api from '../services/api';
+import api from '../services/apiExtended';
 import theme from '../theme';
 
 export default function ChatScreen({ navigation }) {
@@ -55,8 +55,6 @@ export default function ChatScreen({ navigation }) {
   }, []);
 
   const initializeChat = async () => {
-    // Always start fresh - don't load chat history
-    // Only memories, moods, and insights are saved, not chat messages
     setMessages([{
       id: '1',
       message: "Hi—welcome back. How are you feeling right now? I'm here to listen.",
@@ -75,52 +73,65 @@ export default function ChatScreen({ navigation }) {
       timestamp: new Date().toISOString(),
     };
 
-    // Optimistic update
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
 
-    // Scroll to bottom
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
+    // Create placeholder for AI response
+    const aiMessageId = (Date.now() + 1).toString();
+    const aiMessage = {
+      id: aiMessageId,
+      message: '',
+      isUser: false,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+
     try {
-      // Call API (backend uses authenticated user from JWT token)
-      const response = await api.sendMessage(userMessage.message, null, false);
-
-      // Add AI response with emotions
-      const aiMessage = {
-        id: (Date.now() + 1).toString(),
-        message: response.reply || response.response || response.message,
-        isUser: false,
-        timestamp: new Date().toISOString(),
-        emotions: response.emotions || [],
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-
-      // Scroll to bottom
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      // Use streaming
+      await api.sendMessageStream(
+        userMessage.message,
+        // onToken - append each token
+        (token) => {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId 
+              ? { ...msg, message: msg.message + token }
+              : msg
+          ));
+        },
+        // onComplete
+        () => {
+          setIsLoading(false);
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        },
+        // onError
+        (error) => {
+          console.error('Streaming error:', error);
+          setMessages(prev => prev.map(msg =>
+            msg.id === aiMessageId
+              ? { ...msg, message: "I'm having trouble connecting. Please try again." }
+              : msg
+          ));
+          setIsLoading(false);
+        }
+      );
     } catch (error) {
-      console.error('Error sending message:', error);
-
-      // Add error message
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        message: "I'm having trouble connecting right now. Please try again.",
-        isUser: false,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
+      console.error('Error:', error);
+      setMessages(prev => prev.map(msg =>
+        msg.id === aiMessageId
+          ? { ...msg, message: "I'm having trouble connecting. Please try again." }
+          : msg
+      ));
       setIsLoading(false);
     }
   };
 
-  // Memoize render function for better performance
   const renderMessage = useCallback(({ item }) => (
     <MessageBubble
       message={item.message}
@@ -136,7 +147,6 @@ export default function ChatScreen({ navigation }) {
       style={styles.container}
     >
       <SafeAreaView style={styles.safeArea}>
-        {/* Notch-Safe Header with subtle animation */}
         <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? theme.spacing.xl : 8 }]}>
           <Animated.View style={headerAnimatedStyle}>
             <Text style={styles.headerTitle}>Warmth</Text>
@@ -145,7 +155,6 @@ export default function ChatScreen({ navigation }) {
           <TopRightIcons />
         </View>
 
-        {/* Chat Messages */}
         <KeyboardAvoidingView
           style={styles.chatContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -166,10 +175,8 @@ export default function ChatScreen({ navigation }) {
             removeClippedSubviews={true}
           />
 
-          {/* Typing Indicator */}
           {isLoading && <TypingIndicator />}
 
-          {/* Input Bar */}
           <View style={styles.inputWrapper}>
             <InputBar
               value={inputText}

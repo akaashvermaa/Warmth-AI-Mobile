@@ -9,13 +9,15 @@ import {
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
-    withSpring
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme from '../../theme';
 
-const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whateverâ€™s on your mindâ€¦", disabled = false }) => {
+const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whatever's on your mindâ€¦", disabled = false }) => {
     const sendButtonScale = useSharedValue(0.8);
+    const inputGlow = useSharedValue(0.08); // Glow intensity
     const insets = useSafeAreaInsets();
 
     const handleSend = () => {
@@ -29,8 +31,10 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whateverâ€
         onChangeText(text);
         if (text.trim()) {
             sendButtonScale.value = withSpring(1);
+            inputGlow.value = withTiming(0.15, { duration: 300 }); // Gentle glow when typing
         } else {
             sendButtonScale.value = withSpring(0.8);
+            inputGlow.value = withTiming(0.08, { duration: 300 }); // Return to normal
         }
     };
 
@@ -39,11 +43,15 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whateverâ€
         opacity: sendButtonScale.value,
     }));
 
+    const inputContainerStyle = useAnimatedStyle(() => ({
+        shadowOpacity: inputGlow.value,
+    }));
+
     const showSendButton = value && value.trim().length > 0;
 
     return (
         <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 24 }]}>
-            <View style={[styles.inputContainer, theme.shadows.soft]}>
+            <Animated.View style={[styles.inputContainer, inputContainerStyle]}>
                 <TextInput
                     style={styles.input}
                     placeholder={placeholder}
@@ -53,7 +61,7 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whateverâ€
                     multiline
                     maxLength={1000}
                     editable={!disabled}
-                    returnKeyType="default" // "send" often closes keyboard on iOS, default keeps it open for multiline
+                    returnKeyType="default"
                     blurOnSubmit={false}
                 />
 
@@ -65,14 +73,14 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whateverâ€
                             style={styles.sendButton}
                         >
                             <Ionicons
-                                name="arrow-up"
-                                size={20}
+                                name="arrow-up-circle"
+                                size={24}
                                 color="#FFF"
                             />
                         </TouchableOpacity>
                     </Animated.View>
                 )}
-            </View>
+            </Animated.View>
         </View>
     );
 };
@@ -85,34 +93,51 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        backgroundColor: theme.colors.inputBackground,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
         borderRadius: theme.borderRadius.pill,
         paddingHorizontal: 20,
         paddingVertical: 12,
         minHeight: 56,
-        borderWidth: 1,
-        borderColor: theme.colors.inputBorder,
+        borderWidth: 0,
+        borderColor: 'transparent', // Ensure no border color
+        shadowColor: '#FF8A80',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08, // Will be animated
+        shadowRadius: 12,
+        elevation: 3,
+        // Android-specific: remove outline
+        ...(Platform.OS === 'android' && {
+            overflow: 'hidden',
+        }),
     },
     input: {
         flex: 1,
-        fontFamily: theme.typography.body.fontFamily,
+        fontFamily: theme.typography.chatFont,
         fontSize: 16,
         color: theme.colors.text,
         maxHeight: 120,
         paddingTop: Platform.OS === 'ios' ? 6 : 0,
         paddingBottom: Platform.OS === 'ios' ? 6 : 0,
         marginRight: theme.spacing.sm,
+        // Remove any default outlines
+        outlineStyle: 'none',
+        borderWidth: 0,
     },
     sendButtonWrapper: {
         marginBottom: 4,
     },
     sendButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: theme.colors.primary,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FF8A80',
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#FF8A80',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
     },
 });
 

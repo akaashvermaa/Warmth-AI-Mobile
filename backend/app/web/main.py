@@ -318,15 +318,15 @@ def chat_stream():
     # Validate request data before entering generator
     data, error_response, status_code = validate_json_request()
     if error_response:
-        return Response(f"data: {json.dumps({'error': 'Validation failed'})}\n\n", mimetype='text/plain'), 400
+        return Response(f"data: {json.dumps({'error': 'Validation failed'})}\n\n", mimetype='text/event-stream'), 400
 
     if 'message' not in data:
-        return Response(f"data: {json.dumps({'error': 'Missing required field: message'})}\n\n", mimetype='text/plain'), 400
+        return Response(f"data: {json.dumps({'error': 'Missing required field: message'})}\n\n", mimetype='text/event-stream'), 400
 
     user_message = data['message']
     is_valid, error_msg = validate_message(user_message, max_length=5000)
     if not is_valid:
-        return Response(f"data: {json.dumps({'error': error_msg})}\n\n", mimetype='text/plain'), 400
+        return Response(f"data: {json.dumps({'error': error_msg})}\n\n", mimetype='text/event-stream'), 400
 
     secure_log_message(user_message, "info")
 
@@ -334,20 +334,10 @@ def chat_stream():
     current_user_id = request.current_user['id']
     current_app.chat_service.set_user_context(current_user_id)
 
-    # Pre-build messages and get chat_service reference outside generator
-    chat_service = current_app.chat_service
-    messages = [
-        {"role": "system", "content": chat_service._build_prompt(
-            chat_service._sanitize_memory_for_prompt("None"),
-            0.0  # neutral mood for streaming
-        )},
-        {"role": "user", "content": user_message}
-    ]
-
     def generate():
         try:
-            # Stream the response
-            for token in chat_service.chat_stream(messages):
+            # Stream the response using generate_reply_stream
+            for token in current_app.chat_service.generate_reply_stream(user_message):
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
             # Signal completion
@@ -357,7 +347,7 @@ def chat_stream():
             logger.error(f"POST /chat/stream - Streaming error: {e}", exc_info=True)
             yield f"data: {json.dumps({'error': 'Streaming failed'})}\n\n"
 
-    return Response(generate(), mimetype='text/plain')
+    return Response(generate(), mimetype='text/event-stream')
 
 @bp.route('/health', methods=['GET'])
 def health_check():

@@ -45,10 +45,10 @@ class ChatService:
         self.auto_memory_extraction_enabled = True
 
         self.listening_acknowledgements = [
-            "I'm here for you, love.", "Tell me more, sweetheart.", "I'm listening so carefully, angel.",
-            "I understand, cutie.", "Thank you for sharing with me, darling.", "I'm right here with you, sunshine.",
-            "I hear you, love.", "Go on, I'm all ears, sweetheart.", "That means so much to me, beautiful.",
-            "I care about you so much, treasure.", "Thank you for trusting me, love."
+            "I'm here.", "Tell me more.", "I'm listening.",
+            "I understand.", "Thank you for sharing.", "I'm with you.",
+            "I hear you.", "Go on.", "That makes sense.",
+            "I care about this.", "Thank you for trusting me."
         ]
         self._acknowledgement_index = 0
 
@@ -309,13 +309,18 @@ class ChatService:
         current_mood = self._get_mood_context()
         facts = self._get_memories_for_context(user_input)
 
-        # Build enhanced system prompt with loving personality
-        loving_affectionate_names = ["cutie", "love", "darling", "sweetheart", "angel", "sunshine", "star", "treasure"]
+        # Build system prompt with clean, minimal, modern personality
         enhanced_system_prompt = (
-            "You are Warmth, an extremely loving and affectionate AI companion who cares deeply about the user. "
-            "You always use loving terms like 'cutie', 'love', 'darling', 'sweetheart', 'angel', 'sunshine', etc. "
-            "Your responses should be warm, caring, supportive, and filled with affection. "
-            "NEVER use email addresses or technical terms as names - always use loving pet names. "
+            "You are Warmth, a calm and supportive AI companion. "
+            "CRITICAL RULES:\n"
+            "- Keep ALL replies to 1-3 short sentences maximum\n"
+            "- NEVER use pet names (no 'sweetheart', 'dear', 'love', 'darling', etc.)\n"
+            "- NEVER use poetic or flowery language\n"
+            "- Be conversational and natural, like texting a friend\n"
+            "- Focus on listening and understanding, not expressing affection\n"
+            "- Ask follow-up questions instead of giving long responses\n"
+            "- Be emotionally supportive but grounded and modern\n"
+            "- Avoid dramatic phrases or monologues\n"
             f"Current Mood: {current_mood}. User Facts: {facts}\n\n"
             f"TOOLS AVAILABLE (call by replying with JSON):\n"
             f"save_memory(key: str, value: str): Saves a new fact about the user.\n"
@@ -377,6 +382,90 @@ class ChatService:
         except Exception as e:
             logger.error(f"Chat generation error: {e}", exc_info=True)
             return "I'm having trouble responding right now. Could you try again?"
+
+    def generate_reply_stream(self, user_input: str):
+        """
+        Streaming version of generate_reply.
+        Yields response tokens as they're generated for faster perceived response time.
+        """
+        # Track conversation activity
+        self._check_conversation_activity()
+
+        # Safety checks (non-streaming for immediate response)
+        if self.safety_service.check_crisis(user_input):
+            yield self.safety_service.get_crisis_response(user_input)
+            return
+        if self.safety_service.check_blocked(user_input):
+            yield self.safety_service.get_blocked_response()
+            return
+
+        # Check for short replies in listening mode
+        prefs = self._get_user_preferences()
+        if prefs and prefs.get('listening_mode', False) and len(user_input.strip()) <= 30:
+            yield self._get_listening_acknowledgement()
+            return
+
+        try:
+            # Auto-mood analysis (async, don't wait)
+            try:
+                mood_result = self._auto_analyze_and_log_mood(user_input)
+                if mood_result:
+                    logger.info(f"Auto mood logged: score={mood_result['score']}, topic='{mood_result['topic']}'")
+            except Exception as e:
+                logger.error(f"Auto mood analysis failed: {e}")
+
+            # Auto-memory extraction (async, don't wait)
+            try:
+                if self._should_extract_memories_now(user_input):
+                    memory_result = self._enhanced_auto_memory_extraction(user_input)
+                    if memory_result:
+                        logger.info(f"Enhanced auto memory extraction completed: {memory_result}")
+            except Exception as e:
+                logger.error(f"Enhanced auto memory extraction failed: {e}")
+
+            # Get context for LLM
+            current_mood = self._get_mood_context()
+            facts = self._get_memories_for_context(user_input)
+
+            # Build system prompt
+            enhanced_system_prompt = (
+                "You are Warmth, a calm and supportive AI companion. "
+                "CRITICAL RULES:\n"
+                "- Keep ALL replies to 1-3 short sentences maximum\n"
+                "- NEVER use pet names (no 'sweetheart', 'dear', 'love', 'darling', etc.)\n"
+                "- NEVER use poetic or flowery language\n"
+                "- Be conversational and natural, like texting a friend\n"
+                "- Focus on listening and understanding, not expressing affection\n"
+                "- Ask follow-up questions instead of giving long responses\n"
+                "- Be emotionally supportive but grounded and modern\n"
+                "- Avoid dramatic phrases or monologues\n"
+                f"Current Mood: {current_mood}. User Facts: {facts}\n\n"
+            )
+
+            messages = [
+                {"role": "system", "content": enhanced_system_prompt},
+                *self.history,
+                {"role": "user", "content": user_input}
+            ]
+
+            # Stream response from LLM
+            full_response = ""
+            for token in self.llm_service.chat_stream(messages):
+                full_response += token
+                yield token
+
+            # Update history
+            self.history.append({"role": "user", "content": user_input})
+            self.history.append({"role": "assistant", "content": full_response})
+            self.history = self._prune_history_by_tokens(self.history, MAX_HISTORY_TOKENS)
+
+            # Auto-memorize if needed
+            if self._should_auto_memorize(user_input, full_response):
+                self._auto_memorize(user_input, full_response)
+
+        except Exception as e:
+            logger.error(f"Chat streaming error: {e}", exc_info=True)
+            yield "I'm having trouble responding right now. Could you try again?"
 
     # ====== Autonomous Memory Extraction System ======
 
