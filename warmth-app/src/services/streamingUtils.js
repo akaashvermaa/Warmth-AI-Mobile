@@ -11,6 +11,7 @@ export async function streamChatMessage(baseUrl, authToken, message, onToken, on
     }
 
     let seenBytes = 0;
+    let buffer = '';
 
     xhr.onreadystatechange = () => {
       if (xhr.readyState === 3 || xhr.readyState === 4) {
@@ -18,23 +19,32 @@ export async function streamChatMessage(baseUrl, authToken, message, onToken, on
         seenBytes = xhr.responseText.length;
 
         if (newData) {
-          const lines = newData.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') {
-                if (onComplete) onComplete();
-                return;
-              }
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.token && onToken) {
-                  onToken(parsed.token);
-                } else if (parsed.error && onError) {
-                  onError(new Error(`Server Error: ${parsed.error}`));
+          buffer += newData;
+          const parts = buffer.split('\n\n');
+          
+          // The last part might be incomplete, so keep it in the buffer
+          // unless the request is done
+          buffer = parts.pop(); 
+
+          for (const part of parts) {
+            const lines = part.split('\n');
+            for (const line of lines) {
+              if (line.trim().startsWith('data: ')) {
+                const data = line.trim().slice(6);
+                if (data === '[DONE]') {
+                  if (onComplete) onComplete();
+                  return;
                 }
-              } catch (e) {
-                // Ignore incomplete JSON chunks
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.token && onToken) {
+                    onToken(parsed.token);
+                  } else if (parsed.error && onError) {
+                    onError(new Error(`Server Error: ${parsed.error}`));
+                  }
+                } catch (e) {
+                  console.warn('JSON parse error:', e);
+                }
               }
             }
           }
@@ -43,17 +53,26 @@ export async function streamChatMessage(baseUrl, authToken, message, onToken, on
 
       if (xhr.readyState === 4) {
         if (xhr.status >= 200 && xhr.status < 300) {
+          // Process any remaining buffer if needed, though usually it ends with \n\n
+          if (buffer.trim().startsWith('data: ')) {
+             // Try to parse one last time just in case
+             try {
+                const data = buffer.trim().slice(6);
+                if (data !== '[DONE]') {
+                    const parsed = JSON.parse(data);
+                    if (parsed.token && onToken) onToken(parsed.token);
+                }
+             } catch(e) {}
+          }
           resolve();
         } else {
           let errorMsg = `HTTP Error ${xhr.status}`;
           if (xhr.responseText) {
             try {
-              // Try to parse error from JSON response
               const errorJson = JSON.parse(xhr.responseText);
               if (errorJson.error) errorMsg += `: ${errorJson.error}`;
               else errorMsg += `: ${xhr.responseText.substring(0, 100)}`;
             } catch (e) {
-              // If not JSON, just append text
               errorMsg += `: ${xhr.responseText.substring(0, 100)}`;
             }
           }
