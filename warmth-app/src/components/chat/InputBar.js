@@ -20,6 +20,12 @@ const InputBar = ({ value, onChangeText, onSend, placeholder = "Share whatever's
     const inputGlow = useSharedValue(0.08); // Glow intensity
     const insets = useSafeAreaInsets();
 
+    // Debug logging for mount/unmount
+    React.useEffect(() => {
+        console.log('[InputBar] Mounted');
+        return () => console.log('[InputBar] Unmounted');
+    }, []);
+
     const handleSend = () => {
         if (value && value.trim() && !disabled) {
             onSend();

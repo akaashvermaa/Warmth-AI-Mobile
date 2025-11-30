@@ -111,10 +111,16 @@ export default function ChatScreen({ navigation }) {
                 : msg
             );
           });
+          
+          // Throttle scroll to every 5th token or so to reduce bridge traffic
+          if (Math.random() < 0.2) {
+             flatListRef.current?.scrollToEnd({ animated: true });
+          }
         },
         // onComplete
         () => {
           setIsLoading(false);
+          // Final scroll
           setTimeout(() => {
              if(flatListRef.current) {
                 flatListRef.current.scrollToEnd({ animated: true });

@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timedelta
 import threading
 import time
+import random
 
 # Relative imports
 from ..config import (
@@ -45,6 +46,11 @@ class ChatService:
         self.last_user_message_time = {}
         self.auto_memory_extraction_enabled = True
         self._journal_generation_locks = set() # Set of user_ids currently generating journals
+        
+        # Concurrency control
+        self._extraction_timer = None
+        self._lock = threading.Lock()
+        self._extraction_lock = threading.Lock() # Dedicated lock for extraction logic
 
         self.listening_acknowledgements = [
             "I'm here.", "Tell me more.", "I'm listening.",
@@ -456,7 +462,9 @@ class ChatService:
 
         except Exception as e:
             logger.error(f"Chat streaming error: {e}", exc_info=True)
-            yield "I'm having trouble responding right now. Could you try again?"
+            yield f"\n[Error: {str(e)}]"
+            # Ensure stream doesn't hang
+            return
 
     # ====== Autonomous Memory Extraction System ======
 
@@ -576,6 +584,9 @@ Be conservative - only save clear, specific, and important facts."""
         self._journal_generation_locks.add(user_id)
         
         try:
+            # Add small random delay to desynchronize parallel requests
+            time.sleep(random.uniform(0.1, 0.5))
+
             # Check daily limit (max 1 automated journal per day)
             today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
             try:
@@ -667,36 +678,48 @@ Be conservative - only save clear, specific, and important facts."""
             self._journal_generation_locks.discard(user_id)
 
     def _schedule_memory_extraction(self):
-        """Schedules memory extraction after conversation ends."""
+        """Schedules memory extraction after conversation ends (resettable timer)."""
         if not self.auto_memory_extraction_enabled:
             return
 
         user_id = self.get_current_user_id()
 
-        def _delayed_extraction():
+        # Cancel existing timer if it exists
+        if self._extraction_timer:
             try:
-                # Wait 10 minutes after last user message
-                time.sleep(600)  # 10 minutes
-                current_time = datetime.utcnow()
+                self._extraction_timer.cancel()
+            except Exception:
+                pass
 
-                # Check if conversation is still inactive (no new user messages)
+        def _delayed_extraction_wrapper():
+            try:
+                # Set user context for the thread
+                self.set_user_context(user_id)
+                
+                # Double check inactivity
+                current_time = datetime.utcnow()
                 if user_id in self.last_user_message_time:
                     time_diff = current_time - self.last_user_message_time[user_id]
-                    if time_diff >= timedelta(minutes=10):
-                        # Set user context before proceeding with extraction
-                        self.set_user_context(user_id)
-                        # Conversation is still inactive, proceed with extraction
-                        with threading.Lock():
-                            self._summarize_and_save_memories()
-                            # Also generate a journal entry
-                            self._generate_automated_journal(user_id)
-                        logger.info(f"Scheduled autonomous memory extraction and journaling completed for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error in scheduled memory extraction: {e}")
+                    # Allow a small buffer (e.g. 9.9 minutes) to account for timer drift
+                    if time_diff < timedelta(minutes=9.9):
+                        logger.info(f"Activity detected for {user_id}, skipping extraction.")
+                        return
 
-        # Run in background thread
-        extraction_thread = threading.Thread(target=_delayed_extraction, daemon=True)
-        extraction_thread.start()
+                with self._extraction_lock:
+                    logger.info(f"Starting scheduled memory extraction for {user_id}")
+                    self._summarize_and_save_memories()
+                    self._generate_automated_journal(user_id)
+                    logger.info(f"Scheduled extraction completed for {user_id}")
+                    
+            except Exception as e:
+                logger.error(f"Error in scheduled memory extraction: {e}", exc_info=True)
+
+        # Start new timer (10 minutes)
+        # We use a slightly longer delay in production, but for safety 600s is good
+        self._extraction_timer = threading.Timer(600, _delayed_extraction_wrapper)
+        self._extraction_timer.daemon = True
+        self._extraction_timer.start()
+        logger.debug(f"Scheduled memory extraction timer for {user_id} (600s)")
 
     def _check_conversation_activity(self):
         """Updates last user message time and schedules memory extraction if needed."""
