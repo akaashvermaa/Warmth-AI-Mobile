@@ -115,7 +115,7 @@ export default function ChatScreen({ navigation }) {
           console.error('Streaming error:', error);
           setMessages(prev => prev.map(msg =>
             msg.id === aiMessageId
-              ? { ...msg, message: "I'm having trouble connecting. Please try again." }
+              ? { ...msg, message: `Connection Error: ${error.message || "Please try again."}` }
               : msg
           ));
           setIsLoading(false);
@@ -125,7 +125,7 @@ export default function ChatScreen({ navigation }) {
       console.error('Error:', error);
       setMessages(prev => prev.map(msg =>
         msg.id === aiMessageId
-          ? { ...msg, message: "I'm having trouble connecting. Please try again." }
+          ? { ...msg, message: `Connection Error: ${error.message || "Please try again."}` }
           : msg
       ));
       setIsLoading(false);

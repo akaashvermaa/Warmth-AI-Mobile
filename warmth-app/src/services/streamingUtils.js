@@ -1,5 +1,6 @@
 // Streaming utility for chat messages
 // Streaming utility for chat messages
+// Streaming utility for chat messages
 export async function streamChatMessage(baseUrl, authToken, message, onToken, onComplete, onError) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -30,7 +31,7 @@ export async function streamChatMessage(baseUrl, authToken, message, onToken, on
                 if (parsed.token && onToken) {
                   onToken(parsed.token);
                 } else if (parsed.error && onError) {
-                  onError(new Error(parsed.error));
+                  onError(new Error(`Server Error: ${parsed.error}`));
                 }
               } catch (e) {
                 // Ignore incomplete JSON chunks
@@ -44,7 +45,19 @@ export async function streamChatMessage(baseUrl, authToken, message, onToken, on
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
-          const error = new Error(`HTTP error! status: ${xhr.status}`);
+          let errorMsg = `HTTP Error ${xhr.status}`;
+          if (xhr.responseText) {
+            try {
+              // Try to parse error from JSON response
+              const errorJson = JSON.parse(xhr.responseText);
+              if (errorJson.error) errorMsg += `: ${errorJson.error}`;
+              else errorMsg += `: ${xhr.responseText.substring(0, 100)}`;
+            } catch (e) {
+              // If not JSON, just append text
+              errorMsg += `: ${xhr.responseText.substring(0, 100)}`;
+            }
+          }
+          const error = new Error(errorMsg);
           if (onError) onError(error);
           reject(error);
         }
@@ -52,7 +65,7 @@ export async function streamChatMessage(baseUrl, authToken, message, onToken, on
     };
 
     xhr.onerror = () => {
-      const error = new Error('Network request failed');
+      const error = new Error('Network request failed. Check internet connection and API URL.');
       if (onError) onError(error);
       reject(error);
     };
