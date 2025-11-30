@@ -12,7 +12,8 @@ from flask import (
     send_from_directory,
     Response,
     make_response,
-    current_app
+    current_app,
+    stream_with_context
 )
 
 # Use relative imports
@@ -334,10 +335,13 @@ def chat_stream():
     current_user_id = request.current_user['id']
     current_app.chat_service.set_user_context(current_user_id)
 
+    # Capture chat_service to avoid context issues inside generator
+    chat_service = current_app.chat_service
+
     def generate():
         try:
             # Stream the response using generate_reply_stream
-            for token in current_app.chat_service.generate_reply_stream(user_message):
+            for token in chat_service.generate_reply_stream(user_message):
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
             # Signal completion
@@ -347,7 +351,7 @@ def chat_stream():
             logger.error(f"POST /chat/stream - Streaming error: {e}", exc_info=True)
             yield f"data: {json.dumps({'error': 'Streaming failed'})}\n\n"
 
-    return Response(generate(), mimetype='text/event-stream')
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 @bp.route('/health', methods=['GET'])
 def health_check():

@@ -1,61 +1,62 @@
 // Streaming utility for chat messages
+// Streaming utility for chat messages
 export async function streamChatMessage(baseUrl, authToken, message, onToken, onComplete, onError) {
-  try {
-    const response = await fetch(`${baseUrl}/chat/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({ message }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${baseUrl}/chat/stream`);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (authToken) {
+      xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    let seenBytes = 0;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        if (onComplete) onComplete();
-        break;
-      }
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 3 || xhr.readyState === 4) {
+        const newData = xhr.responseText.substring(seenBytes);
+        seenBytes = xhr.responseText.length;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          
-          if (data === '[DONE]') {
-            if (onComplete) onComplete();
-            return;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.token && onToken) {
-              onToken(parsed.token);
-            } else if (parsed.error && onError) {
-              onError(new Error(parsed.error));
-              return;
+        if (newData) {
+          const lines = newData.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                if (onComplete) onComplete();
+                return;
+              }
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.token && onToken) {
+                  onToken(parsed.token);
+                } else if (parsed.error && onError) {
+                  onError(new Error(parsed.error));
+                }
+              } catch (e) {
+                // Ignore incomplete JSON chunks
+              }
             }
-          } catch (e) {
-            console.warn('Failed to parse SSE data:', data);
           }
         }
       }
-    }
-  } catch (error) {
-    console.error('Streaming error:', error);
-    if (onError) onError(error);
-    throw error;
-  }
+
+      if (xhr.readyState === 4) {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          const error = new Error(`HTTP error! status: ${xhr.status}`);
+          if (onError) onError(error);
+          reject(error);
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      const error = new Error('Network request failed');
+      if (onError) onError(error);
+      reject(error);
+    };
+
+    xhr.send(JSON.stringify({ message }));
+  });
 }

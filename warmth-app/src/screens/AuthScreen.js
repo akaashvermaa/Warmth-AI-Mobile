@@ -2,7 +2,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import {
     Dimensions,
-    Image,
     Keyboard,
     KeyboardAvoidingView,
     Platform,
@@ -209,11 +208,8 @@ const AuthScreen = ({ onLogin }) => {
           {/* Logo */}
           <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
             <View style={styles.logoCard}>
-              <Image
-                source={require('../../assets/logo/warmth-icon.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              {/* Image removed to fix build error */}
+              <View style={[styles.logo, { backgroundColor: '#FF8A80', borderRadius: LOGO_SIZE / 2 }]} />
             </View>
           </Animated.View>
 
