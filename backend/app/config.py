@@ -9,7 +9,7 @@ ZAI_TEMPERATURE = 0.3  # Low temperature for concise, predictable responses
 ZAI_TIMEOUT = 30  # Request timeout in seconds
 
 # Token Limits (Cost Control)
-MAX_INPUT_TOKENS = 500  # Trim inputs longer than this
+MAX_INPUT_TOKENS = 400  # Trim inputs longer than this
 MAX_OUTPUT_TOKENS = 150  # Limit response length
 DAILY_TOKEN_LIMIT = 50000  # Daily usage cap to prevent runaway costs
 
@@ -29,7 +29,7 @@ else:
 
 # Chat Configuration
 CHAT_HISTORY_LENGTH = int(os.getenv('CHAT_HISTORY_LENGTH', '10'))
-MAX_HISTORY_TOKENS = int(os.getenv('MAX_HISTORY_TOKENS', '2000'))
+MAX_HISTORY_TOKENS = int(os.getenv('MAX_HISTORY_TOKENS', '1200'))
 SLOW_RESPONSE_THRESHOLD = float(os.getenv('SLOW_RESPONSE_THRESHOLD', '5.0'))
 AUTO_MEMORIZE_COOLDOWN = int(os.getenv('AUTO_MEMORIZE_COOLDOWN', '10'))
 

@@ -41,7 +41,7 @@ const MessageBubble = React.memo(({ message, isUser, timestamp, emotions }) => {
                     style={[
                         styles.bubble,
                         isUser ? styles.userBubble : styles.assistantBubble,
-                        !isUser && theme.shadows.soft // Only AI bubble has shadow
+                        !isUser && { /* No shadow for performance */ } // Only AI bubble has shadow
                     ]}
                 >
                     <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>

@@ -42,7 +42,9 @@ class ChatService:
         self.default_user_id = DEFAULT_USER_ID
         self.last_memorize_time = {}
         self.last_user_message_time = {}
+        self.last_user_message_time = {}
         self.auto_memory_extraction_enabled = True
+        self._journal_generation_locks = set() # Set of user_ids currently generating journals
 
         self.listening_acknowledgements = [
             "I'm here.", "Tell me more.", "I'm listening.",
@@ -61,6 +63,24 @@ class ChatService:
     def get_current_user_id(self) -> str:
         """Get the current user ID, falling back to default if not set."""
         return getattr(self._local, 'user_id', self.default_user_id)
+
+    def _run_in_background(self, target, *args):
+        """Helper to run a method in a background thread."""
+        try:
+            # Capture user_id for the thread context
+            user_id = self.get_current_user_id()
+            
+            def _wrapper():
+                self.set_user_context(user_id)
+                try:
+                    target(*args)
+                except Exception as e:
+                    logger.error(f"Background task failed: {e}", exc_info=True)
+            
+            thread = threading.Thread(target=_wrapper, daemon=True)
+            thread.start()
+        except Exception as e:
+            logger.error(f"Failed to start background task: {e}")
 
     # ====== Supabase Helper Methods ======
 
@@ -287,23 +307,13 @@ class ChatService:
             return self._get_listening_acknowledgement()
 
         # 🌟 AUTO-MOOD ANALYSIS - The Living Journal Pipeline
-        # Every user message triggers automatic mood analysis
-        try:
-            mood_result = self._auto_analyze_and_log_mood(user_input)
-            if mood_result:
-                logger.info(f"Auto mood logged: score={mood_result['score']}, topic='{mood_result['topic']}'")
-        except Exception as e:
-            logger.error(f"Auto mood analysis failed: {e}", exc_info=True)
+        # Run in background to avoid blocking response
+        self._run_in_background(self._auto_analyze_and_log_mood, user_input)
 
         # 🧠 AUTO-MEMORY EXTRACTION - Enhanced Living Journal Pipeline
-        # Every message has a chance to trigger immediate memory extraction
-        try:
-            if self._should_extract_memories_now(user_input):
-                memory_result = self._enhanced_auto_memory_extraction(user_input)
-                if memory_result:
-                    logger.info(f"Enhanced auto memory extraction completed: {memory_result}")
-        except Exception as e:
-            logger.error(f"Enhanced auto memory extraction failed: {e}", exc_info=True)
+        # Run in background to avoid blocking response
+        if self._should_extract_memories_now(user_input):
+            self._run_in_background(self._enhanced_auto_memory_extraction, user_input)
 
         # Get mood context for LLM (now includes the just-logged mood)
         current_mood = self._get_mood_context()
@@ -318,22 +328,18 @@ class ChatService:
         return (
             "You are Warmth, a calm and supportive AI companion. "
             "CRITICAL RULES:\n"
-            "- Keep ALL replies to 1-3 short sentences maximum\n"
-            "- NEVER use pet names (no 'sweetheart', 'dear', 'love', 'darling', etc.)\n"
-            "- NEVER use poetic or flowery language\n"
-            "- Be conversational and natural, like texting a friend\n"
-            "- Focus on listening and understanding, not expressing affection\n"
-            "- Ask follow-up questions instead of giving long responses\n"
-            "- Be emotionally supportive but grounded and modern\n"
-            "- Avoid dramatic phrases or monologues\n"
-            f"Current Mood: {current_mood}. User Facts: {facts}\n\n"
-            f"TOOLS AVAILABLE (call by replying with JSON):\n"
-            f"save_memory(key: str, value: str): Saves a new fact about the user.\n"
-            f"get_current_weather(location: str): Gets current weather information for a location.\n"
-            f"get_news_headlines(topic: str): Gets news headlines for a specific topic.\n"
-            f"set_a_reminder(time: str, reminder_text: str): Sets a reminder for a specific time.\n"
-            f"To call a tool, reply with ONLY a JSON object: {{\"tool_call\": \"tool_name\", \"args\": {{\"param\": \"value\"}}}}.\n"
-            f"Otherwise, reply as usual."
+            "- Keep replies short (1-3 sentences).\n"
+            "- NO pet names or flowery language.\n"
+            "- Be conversational, like a friend.\n"
+            "- Ask follow-up questions.\n"
+            "- Be supportive but grounded.\n"
+            f"Context: Mood={current_mood}. Facts={facts}\n\n"
+            f"TOOLS (reply with JSON):\n"
+            f"save_memory(key, value)\n"
+            f"get_current_weather(location)\n"
+            f"get_news_headlines(topic)\n"
+            f"set_a_reminder(time, text)\n"
+            f"Format: {{\"tool_call\": \"name\", \"args\": {{...}}}}"
         )
 
         messages = [
@@ -411,22 +417,12 @@ class ChatService:
             return
 
         try:
-            # Auto-mood analysis (async, don't wait)
-            try:
-                mood_result = self._auto_analyze_and_log_mood(user_input)
-                if mood_result:
-                    logger.info(f"Auto mood logged: score={mood_result['score']}, topic='{mood_result['topic']}'")
-            except Exception as e:
-                logger.error(f"Auto mood analysis failed: {e}")
+            # Auto-mood analysis (background)
+            self._run_in_background(self._auto_analyze_and_log_mood, user_input)
 
-            # Auto-memory extraction (async, don't wait)
-            try:
-                if self._should_extract_memories_now(user_input):
-                    memory_result = self._enhanced_auto_memory_extraction(user_input)
-                    if memory_result:
-                        logger.info(f"Enhanced auto memory extraction completed: {memory_result}")
-            except Exception as e:
-                logger.error(f"Enhanced auto memory extraction failed: {e}")
+            # Auto-memory extraction (background)
+            if self._should_extract_memories_now(user_input):
+                self._run_in_background(self._enhanced_auto_memory_extraction, user_input)
 
             # Get context for LLM
             current_mood = self._get_mood_context()
@@ -454,8 +450,9 @@ class ChatService:
             self.history = self._prune_history_by_tokens(self.history, MAX_HISTORY_TOKENS)
 
             # Auto-memorize if needed
+            # Auto-memorize if needed (background)
             if self._should_auto_memorize(user_input, full_response):
-                self._auto_memorize(user_input, full_response)
+                self._run_in_background(self._auto_memorize, user_input, full_response)
 
         except Exception as e:
             logger.error(f"Chat streaming error: {e}", exc_info=True)
@@ -571,6 +568,13 @@ Be conservative - only save clear, specific, and important facts."""
         Generates an automated journal entry from recent conversation.
         Limited to 1 per day.
         """
+        # Concurrency check
+        if user_id in self._journal_generation_locks:
+            logger.info(f"Journal generation already in progress for user {user_id}. Skipping.")
+            return
+            
+        self._journal_generation_locks.add(user_id)
+        
         try:
             # Check daily limit (max 1 automated journal per day)
             today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
@@ -659,6 +663,8 @@ Be conservative - only save clear, specific, and important facts."""
 
         except Exception as e:
             logger.error(f"Error in automated journal generation: {e}", exc_info=True)
+        finally:
+            self._journal_generation_locks.discard(user_id)
 
     def _schedule_memory_extraction(self):
         """Schedules memory extraction after conversation ends."""

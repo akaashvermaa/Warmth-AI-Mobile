@@ -81,53 +81,70 @@ export default function ChatScreen({ navigation }) {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
-    // Create placeholder for AI response
+    // Use streaming
     const aiMessageId = (Date.now() + 1).toString();
-    const aiMessage = {
-      id: aiMessageId,
-      message: '',
-      isUser: false,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, aiMessage]);
 
     try {
-      // Use streaming
       await api.sendMessageStream(
         userMessage.message,
         // onToken - append each token
         (token) => {
-          setMessages(prev => prev.map(msg => 
-            msg.id === aiMessageId 
-              ? { ...msg, message: msg.message + token }
-              : msg
-          ));
+          setMessages(prev => {
+            // Check if AI message exists
+            const exists = prev.some(msg => msg.id === aiMessageId);
+            
+            if (!exists) {
+              // Create it on first token
+              const aiMessage = {
+                id: aiMessageId,
+                message: token,
+                isUser: false,
+                timestamp: new Date().toISOString(),
+              };
+              return [...prev, aiMessage];
+            }
+            
+            // Append token
+            return prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, message: msg.message + token }
+                : msg
+            );
+          });
         },
         // onComplete
         () => {
           setIsLoading(false);
           setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
+             if(flatListRef.current) {
+                flatListRef.current.scrollToEnd({ animated: true });
+             }
           }, 100);
         },
         // onError
         (error) => {
           console.error('Streaming error:', error);
-          setMessages(prev => prev.map(msg =>
-            msg.id === aiMessageId
-              ? { ...msg, message: `Connection Error: ${error.message || "Please try again."}` }
-              : msg
-          ));
+          setMessages(prev => {
+             const exists = prev.some(msg => msg.id === aiMessageId);
+             if (!exists) {
+                 return [...prev, {
+                    id: aiMessageId,
+                    message: `Connection Error: ${error.message || "Please try again."}`,
+                    isUser: false,
+                    timestamp: new Date().toISOString(),
+                 }];
+             }
+             return prev.map(msg =>
+                msg.id === aiMessageId
+                  ? { ...msg, message: msg.message + `\n[Error: ${error.message}]` }
+                  : msg
+              );
+          });
           setIsLoading(false);
         }
       );
     } catch (error) {
       console.error('Error:', error);
-      setMessages(prev => prev.map(msg =>
-        msg.id === aiMessageId
-          ? { ...msg, message: `Connection Error: ${error.message || "Please try again."}` }
-          : msg
-      ));
       setIsLoading(false);
     }
   };
