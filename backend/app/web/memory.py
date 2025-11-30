@@ -3,10 +3,10 @@ import logging
 from flask import Blueprint, request, jsonify, current_app
 from ..security import require_auth
 
-bp = Blueprint('memory', __name__, url_prefix='/memories')
+bp = Blueprint('memory', __name__)
 logger = logging.getLogger(__name__)
 
-@bp.route('/', methods=['GET', 'POST'])
+@bp.route('/memories', methods=['GET', 'POST'])
 @require_auth
 def handle_memories():
     """GET: Retrieve memories for the authenticated user.

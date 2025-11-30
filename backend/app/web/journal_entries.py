@@ -3,10 +3,10 @@ import logging
 from flask import Blueprint, request, jsonify, current_app
 from ..security import require_auth
 
-bp = Blueprint('journal_entries', __name__, url_prefix='/journal_entries')
+bp = Blueprint('journal_entries', __name__)
 logger = logging.getLogger(__name__)
 
-@bp.route('/', methods=['GET'])
+@bp.route('/journal_entries', methods=['GET'])
 @require_auth
 def get_journal_entries():
     """ GET /journal_entries - Retrieves combined memories and mood logs sorted by timestamp. """
