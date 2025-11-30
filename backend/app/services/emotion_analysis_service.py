@@ -52,14 +52,14 @@ class EmotionAnalysisService:
             
             # Create analysis prompt with EXPLICIT JSON requirement
             prompt = f"""Analyze the following message for emotional content and topics.
-
+            
 Context (previous messages):
 {context_str}
 
 Current message to analyze:
 {message}
 
-You MUST respond with ONLY a valid JSON object matching this EXACT schema. Do not include any other text, markdown formatting, or explanations.
+You MUST respond with ONLY a valid JSON object matching this EXACT schema. Do not include any other text.
 
 Schema:
 {{
@@ -70,10 +70,10 @@ Schema:
 }}
 
 Rules:
-- "emotions": Array of 1-5 emotions from: happy, sad, anxious, calm, tired, proud, frustrated, hopeful, lonely, grateful, overwhelmed, peaceful
-- "topics": Array of 1-5 main topics discussed
-- "sentiment_score": Float from -1.0 (very negative) to +1.0 (very positive)
-- "intensity": Float from 0.0 (mild) to 1.0 (intense)
+- "emotions": Array of 1-3 specific emotions. Avoid generic "neutral" if possible. Look for nuance (e.g., "contemplative" instead of "neutral", "frustrated" instead of "angry").
+- "topics": Array of 1-3 main topics. Be specific (e.g., "Work Deadline" instead of "Work").
+- "sentiment_score": Float from -1.0 (very negative) to +1.0 (very positive).
+- "intensity": Float from 0.0 (mild) to 1.0 (intense).
 
 Return ONLY the JSON string."""
 
@@ -158,14 +158,13 @@ Return ONLY the JSON string."""
                     sentiment_scores.append(msg['sentiment_score'])
             
             # Create recap prompt with EXPLICIT JSON requirement
-            prompt = f"""Create a compassionate 3-day emotional summary for a user.
+            prompt = f"""Create a compassionate, emotional summary for the user based on their last 3 days.
 
-User's messages over the last 3 days:
-{chr(10).join(user_messages[:20])}
+User's messages:
+{chr(10).join(user_messages[:30])}
 
 Detected emotions: {', '.join(set(all_emotions))}
 Detected topics: {', '.join(set(all_topics))}
-Average sentiment: {sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0:.2f}
 
 You MUST respond with ONLY a valid JSON object in this format:
 {{
@@ -176,7 +175,14 @@ You MUST respond with ONLY a valid JSON object in this format:
   "recommendations": [{{"icon": "🫁", "title": "string", "action": "breathing"}}]
 }}
 
-Be warm and supportive. Respond with ONLY the JSON object."""
+Rules:
+- **Headline**: Short, warm, and insightful (e.g., "A week of growth", "Navigating some stress").
+- **Narrative**: A supportive paragraph (2-3 sentences) reflecting on their journey. Use "You" language. Be empathetic.
+- **Top Emotions**: Pick the 3 most significant emotions. Avoid "Neutral".
+- **Key Topics**: Pick 3 specific topics.
+- **Recommendations**: 1-2 simple, actionable self-care tips based on their mood.
+
+Return ONLY the JSON object."""
 
             # Call OpenAI API
             response = self.client.chat.completions.create(

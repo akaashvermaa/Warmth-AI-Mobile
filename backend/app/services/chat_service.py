@@ -569,8 +569,25 @@ Be conservative - only save clear, specific, and important facts."""
     def _generate_automated_journal(self, user_id: str):
         """
         Generates an automated journal entry from recent conversation.
+        Limited to 1 per day.
         """
         try:
+            # Check daily limit (max 1 automated journal per day)
+            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            try:
+                count_result = self.supabase.table('journals')\
+                    .select('id', count='exact')\
+                    .eq('user_id', user_id)\
+                    .eq('is_automated', True)\
+                    .gte('created_at', today_start)\
+                    .execute()
+                
+                if count_result.count >= 1:
+                    logger.info("Daily automated journal limit reached (1/1). Skipping generation.")
+                    return
+            except Exception as e:
+                logger.warning(f"Failed to check journal count: {e}")
+                # Continue if check fails
             # Get recent chat history (last 20 messages)
             recent_history = self.history[-20:] if len(self.history) >= 4 else []
             
@@ -731,8 +748,27 @@ Be conservative - only save clear, specific, and important facts."""
         """
         Enhanced immediate memory extraction using the LLM to understand context.
         This extracts memories right away when rich content is detected.
+        Limited to 3 memories per day to prevent noise.
         """
         try:
+            user_id = self.get_current_user_id()
+            
+            # Check daily limit (max 3 memories per day)
+            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            try:
+                count_result = self.supabase.table('memories')\
+                    .select('id', count='exact')\
+                    .eq('user_id', user_id)\
+                    .gte('timestamp', today_start)\
+                    .execute()
+                
+                if count_result.count >= 3:
+                    logger.info("Daily memory limit reached (3/3). Skipping extraction.")
+                    return {"status": "skipped", "reason": "daily_limit_reached"}
+            except Exception as e:
+                logger.warning(f"Failed to check memory count: {e}")
+                # Continue if check fails
+            
             # Create a focused extraction prompt
             extraction_prompt = """You are a memory extraction AI. Read the user's message and extract any important, specific facts about them.
 
@@ -812,8 +848,38 @@ User message: """ + user_input
         """
         Automatically analyzes user input for mood and logs it to Supabase.
         Uses EmotionAnalysisService (Z.ai) for deeper analysis.
+        Implements aggregation: Only logs if > 3 hours passed OR significant change (>0.3).
         """
         try:
+            # 1. Check last mood log time and score
+            user_id = self.get_current_user_id()
+            try:
+                last_log = self.supabase.table('mood_logs')\
+                    .select('score, timestamp')\
+                    .eq('user_id', user_id)\
+                    .order('timestamp', desc=True)\
+                    .limit(1)\
+                    .execute()
+                
+                should_log = True
+                last_score = 0
+                
+                if last_log.data:
+                    last_entry = last_log.data[0]
+                    last_time = datetime.fromisoformat(last_entry['timestamp'].replace('Z', '+00:00'))
+                    last_score = last_entry['score']
+                    
+                    # Calculate time difference
+                    time_diff = datetime.utcnow() - last_time.replace(tzinfo=None)
+                    
+                    # If less than 3 hours, check for significant change
+                    if time_diff < timedelta(hours=3):
+                        should_log = False # Default to false if within window
+            except Exception as e:
+                logger.warning(f"Failed to check last mood log: {e}")
+                should_log = True # Fallback to logging if check fails
+                last_score = 0
+
             # Use EmotionAnalysisService
             analysis = self.analyzer_service.analyze_message(user_input)
             
@@ -826,6 +892,16 @@ User message: """ + user_input
             topics = analysis.get('topics', [])
             detected_topic = topics[0] if topics else "General"
             
+            # If we were going to skip, check if mood change is significant
+            if not should_log:
+                score_change = abs(mood_score - last_score)
+                if score_change > 0.3:
+                    should_log = True
+                    logger.info(f"Significant mood change detected ({score_change:.2f}), forcing log.")
+                else:
+                    logger.info(f"Skipping mood log: within 3h window and change {score_change:.2f} < 0.3")
+                    return {"score": mood_score, "label": "Skipped", "topic": detected_topic}
+
             # Determine label based on score
             if mood_score >= 0.5:
                 mood_label = "Great"
@@ -841,7 +917,7 @@ User message: """ + user_input
             # Log to Supabase
             try:
                 self.supabase.table('mood_logs').insert({
-                    'user_id': self.get_current_user_id(),
+                    'user_id': user_id,
                     'score': mood_score,
                     'label': mood_label,
                     'topic': detected_topic,
