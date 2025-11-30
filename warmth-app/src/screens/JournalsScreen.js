@@ -3,16 +3,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import React, { useCallback, useState } from 'react';
 import {
-    Alert,
     Dimensions,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -83,34 +78,38 @@ const MoodGraph = ({ data }) => {
     );
 };
 
-const JournalCard = React.memo(({ journal, onPress, onDelete, index }) => (
+const JournalCard = React.memo(({ journal, index }) => (
     <Animated.View
         entering={FadeInDown.delay(index * 100).duration(400)}
         style={styles.journalCardWrapper}
     >
         <TouchableOpacity
-            onPress={() => onPress(journal)}
-            activeOpacity={0.7}
+            activeOpacity={0.9}
         >
             <BlurView intensity={20} tint="light" style={styles.journalCard}>
                 <View style={styles.journalHeader}>
                     <Text style={styles.journalDate}>
-                        {new Date(journal.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(journal.timestamp || journal.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </Text>
-                    {journal.mood_score !== null && (
-                        <Text style={styles.journalMood}>Mood: {journal.mood_score}</Text>
+                    {journal.type === 'mood' && (
+                        <Text style={styles.journalMood}>Mood: {journal.score}</Text>
+                    )}
+                    {journal.type === 'memory' && (
+                        <Text style={styles.journalMood}>Memory</Text>
                     )}
                 </View>
-                <Text style={styles.journalTitle} numberOfLines={1}>{journal.title}</Text>
-                <Text style={styles.journalPreview} numberOfLines={2}>{journal.content}</Text>
-
-                <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => onDelete(journal.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                    <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
+                
+                {journal.type === 'mood' ? (
+                    <>
+                        <Text style={styles.journalTitle}>{journal.label || 'Mood Log'}</Text>
+                        {journal.topic && <Text style={styles.journalPreview}>Topic: {journal.topic}</Text>}
+                    </>
+                ) : (
+                    <>
+                        <Text style={styles.journalTitle}>{journal.key}</Text>
+                        <Text style={styles.journalPreview}>{journal.value}</Text>
+                    </>
+                )}
             </BlurView>
         </TouchableOpacity>
     </Animated.View>
@@ -122,12 +121,6 @@ const JournalsScreen = ({ navigation }) => {
     const [journals, setJournals] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-
-    // Modal State
-    const [isModalVisible, setModalVisible] = useState(false);
-    const [newTitle, setNewTitle] = useState('');
-    const [newContent, setNewContent] = useState('');
-    const [saving, setSaving] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -150,26 +143,23 @@ const JournalsScreen = ({ navigation }) => {
 
     const loadRecap = async () => {
         try {
-            const data = await api.getLatestRecap();
+            const data = await api.getRecap();
             setRecap(data?.recap || null);
         } catch (error) {
-            // 404 is expected if no recap exists yet
-            if (error.message && (error.message.includes('No recap available') || error.message.includes('404'))) {
-                setRecap(null);
-            } else {
-                console.error('Failed to load recap:', error);
-            }
+            console.error('Failed to load recap:', error);
+            setRecap(null);
         }
     };
 
     const loadMoodHistory = async () => {
         try {
-            const data = await api.getMoodHistory();
+            const data = await api.getMoodLogs();
             if (data?.mood_logs && data.mood_logs.length > 0) {
-                const recentMoods = data.mood_logs.slice(-7);
+                // Take last 7 for graph
+                const recentMoods = data.mood_logs.slice(0, 7).reverse(); 
                 const graphData = recentMoods.map(log => ({
                     day: new Date(log.timestamp).toLocaleDateString('en-US', { weekday: 'short' }),
-                    value: (log.score + 1) * 2.5,
+                    value: (log.score + 1) * 2.5, // Map -1..1 to 0..5
                     label: log.label || 'Neutral'
                 }));
                 setMoodHistory(graphData);
@@ -178,69 +168,22 @@ const JournalsScreen = ({ navigation }) => {
             }
         } catch (error) {
             console.error('Failed to load mood history:', error);
-            setMoodHistory([]); // Set empty array on error
+            setMoodHistory([]);
         }
     };
 
     const loadJournals = async () => {
         try {
-            const data = await api.getJournal();
-            if (Array.isArray(data)) {
-                setJournals(data);
+            const data = await api.getJournalEntries();
+            if (data?.entries && Array.isArray(data.entries)) {
+                setJournals(data.entries);
             } else {
                 setJournals([]);
             }
         } catch (error) {
             console.error('Failed to load journals:', error);
-            setJournals([]); // Set empty array on error
+            setJournals([]);
         }
-    };
-
-    const handleCreateJournal = async () => {
-        if (!newContent.trim()) {
-            Alert.alert('Empty Entry', 'Please write something in your journal.');
-            return;
-        }
-
-        setSaving(true);
-        try {
-            await api.createJournal({
-                title: newTitle || 'Untitled Entry',
-                content: newContent,
-                mood_score: null // Optional: Add mood selector later
-            });
-
-            setModalVisible(false);
-            setNewTitle('');
-            setNewContent('');
-            loadJournals(); // Refresh list
-        } catch (error) {
-            Alert.alert('Error', 'Failed to save journal entry.');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleDeleteJournal = (id) => {
-        Alert.alert(
-            'Delete Entry',
-            'Are you sure you want to delete this journal entry?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await api.deleteJournal(id);
-                            setJournals(prev => prev.filter(j => j.id !== id));
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to delete entry.');
-                        }
-                    }
-                }
-            ]
-        );
     };
 
     const onRefresh = async () => {
@@ -254,8 +197,6 @@ const JournalsScreen = ({ navigation }) => {
             <Header
                 title="Journal & Insights"
                 showBack
-                rightIcon="add"
-                onRightPress={() => setModalVisible(true)}
             />
 
             <ScrollView
@@ -291,68 +232,24 @@ const JournalsScreen = ({ navigation }) => {
                     </Animated.View>
                 )}
 
-                {/* 3. Journals List */}
-                <Text style={styles.sectionTitle}>Your Entries</Text>
+                {/* 3. Journals List (AI Generated) */}
+                <Text style={styles.sectionTitle}>Insights & Moments</Text>
                 {journals.length > 0 ? (
                     journals.map((journal, index) => (
                         <JournalCard
                             key={journal.id}
                             journal={journal}
-                            onPress={(j) => Alert.alert(j.title, j.content)} // Simple view for now
-                            onDelete={handleDeleteJournal}
                             index={index}
                         />
                     ))
                 ) : (
                     <View style={styles.emptyContainer}>
                         <Ionicons name="journal-outline" size={48} color={theme.colors.textSecondary} />
-                        <Text style={styles.emptyText}>No journal entries yet</Text>
-                        <Text style={styles.emptySubtext}>Tap + to create your first entry</Text>
+                        <Text style={styles.emptyText}>No insights yet</Text>
+                        <Text style={styles.emptySubtext}>Chat with Warmth to generate insights</Text>
                     </View>
                 )}
             </ScrollView>
-
-            {/* Create Journal Modal */}
-            <Modal
-                visible={isModalVisible}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <ScreenWrapper gradient={false} style={{ backgroundColor: '#FFF' }}>
-                    <View style={styles.modalHeader}>
-                        <TouchableOpacity onPress={() => setModalVisible(false)}>
-                            <Text style={styles.modalCancel}>Cancel</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.modalTitle}>New Entry</Text>
-                        <TouchableOpacity onPress={handleCreateJournal} disabled={saving}>
-                            <Text style={[styles.modalSave, saving && { opacity: 0.5 }]}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                        <ScrollView style={styles.modalContent}>
-                            <TextInput
-                                style={styles.titleInput}
-                                placeholder="Title (Optional)"
-                                value={newTitle}
-                                onChangeText={setNewTitle}
-                                placeholderTextColor={theme.colors.textSecondary}
-                            />
-                            <TextInput
-                                style={styles.contentInput}
-                                placeholder="What's on your mind?"
-                                value={newContent}
-                                onChangeText={setNewContent}
-                                multiline
-                                textAlignVertical="top"
-                                placeholderTextColor={theme.colors.textSecondary}
-                                autoFocus
-                            />
-                        </ScrollView>
-                    </KeyboardAvoidingView>
-                </ScreenWrapper>
-            </Modal>
         </ScreenWrapper>
     );
 };
@@ -491,12 +388,6 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         fontFamily: theme.typography.body.fontFamily,
     },
-    deleteButton: {
-        position: 'absolute',
-        bottom: 10,
-        right: 10,
-        padding: 5,
-    },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -513,50 +404,6 @@ const styles = StyleSheet.create({
         color: theme.colors.textQuiet,
         marginTop: theme.spacing.xs,
         fontFamily: theme.typography.caption.fontFamily,
-    },
-    // Modal Styles
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: theme.spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.borderLight,
-    },
-    modalCancel: {
-        fontSize: 16,
-        color: theme.colors.textSecondary,
-        fontFamily: theme.typography.body.fontFamily,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: theme.colors.text,
-        fontFamily: theme.typography.heading.fontFamily,
-    },
-    modalSave: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: theme.colors.primary,
-        fontFamily: theme.typography.body.fontFamily,
-    },
-    modalContent: {
-        flex: 1,
-        padding: theme.spacing.md,
-    },
-    titleInput: {
-        fontSize: 24,
-        fontWeight: '600',
-        color: theme.colors.text,
-        fontFamily: theme.typography.heading.fontFamily,
-        marginBottom: theme.spacing.lg,
-    },
-    contentInput: {
-        fontSize: 16,
-        lineHeight: 24,
-        color: theme.colors.text,
-        fontFamily: theme.typography.body.fontFamily,
-        minHeight: 200,
     },
 });
 

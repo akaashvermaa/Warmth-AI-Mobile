@@ -3,7 +3,7 @@ import logging
 from flask import Blueprint, request, jsonify, current_app
 from ..security import require_auth
 
-bp = Blueprint('memory', __name__, url_prefix='/memory')
+bp = Blueprint('memory', __name__, url_prefix='/memories')
 logger = logging.getLogger(__name__)
 
 @bp.route('/', methods=['GET', 'POST'])

@@ -5,62 +5,14 @@ from datetime import datetime, timedelta
 from ..security import require_auth
 from ..services.emotion_analysis_service import get_emotion_service
 
-bp = Blueprint('insights', __name__, url_prefix='/insights')
+bp = Blueprint('insights', __name__)
 logger = logging.getLogger(__name__)
 
-@bp.route('/recap/check', methods=['GET'])
-@require_auth
-def check_recap_status():
-    """
-    GET /insights/recap/check
-    Check if a new 3-day recap is available for the user.
-    """
-    try:
-        user = getattr(request, 'current_user', None)
-        if not user:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        user_id = user.get('id')
-        supabase = current_app.supabase
-        
-        # Check if there's an unviewed recap
-        result = supabase.table('emotional_recaps').select('*').eq(
-            'user_id', user_id
-        ).eq('viewed', False).order('created_at', desc=True).limit(1).execute()
-        
-        if result.data:
-            return jsonify({
-                "has_new_recap": True,
-                "recap_id": result.data[0]['id'],
-                "created_at": result.data[0]['created_at']
-            }), 200
-        
-        # Check if user needs a new recap (using database function)
-        try:
-            # Call the database function
-            result = supabase.rpc('needs_new_recap', {'p_user_id': user_id}).execute()
-            needs_recap = result.data if result.data else False
-            
-            return jsonify({
-                "has_new_recap": False,
-                "needs_generation": needs_recap
-            }), 200
-        except Exception as e:
-            logger.warning(f"Failed to check recap status: {e}")
-            return jsonify({
-                "has_new_recap": False,
-                "needs_generation": False
-            }), 200
-            
-    except Exception as e:
-        logger.error(f"GET /insights/recap/check error: {e}", exc_info=True)
-        return jsonify({"error": f"Failed to check recap status: {str(e)}"}), 500
-
-@bp.route('/recap/latest', methods=['GET'])
+@bp.route('/recap', methods=['GET'])
 @require_auth
 def get_latest_recap():
     """
-    GET /insights/recap/latest
+    GET /recap
     Get the latest 3-day emotional recap for the user.
     """
     try:
@@ -75,7 +27,9 @@ def get_latest_recap():
         ).order('created_at', desc=True).limit(1).execute()
         
         if not result.data:
-            return jsonify({"error": "No recap available"}), 404
+            # If no recap, check if we need to generate one
+            # This logic was previously in /recap/check, now we can just return 404 or empty
+            return jsonify({"recap": None}), 200
         
         recap = result.data[0]
         
@@ -102,7 +56,7 @@ def get_latest_recap():
         }), 200
         
     except Exception as e:
-        logger.error(f"GET /insights/recap/latest error: {e}", exc_info=True)
+        logger.error(f"GET /recap error: {e}", exc_info=True)
         return jsonify({"error": "Failed to get recap"}), 500
 
 @bp.route('/recap/generate', methods=['POST'])

@@ -79,7 +79,13 @@ def create_app():
     app.secret_key = app.config.get('FLASK_SECRET_KEY', os.urandom(32).hex())
 
     # === Initialize Extensions ===
-    cors.init_app(app, origins=app.config.get('ALLOWED_ORIGINS', '*').split(','), supports_credentials=True)
+    cors.init_app(
+        app, 
+        origins=app.config.get('ALLOWED_ORIGINS', '*').split(','), 
+        supports_credentials=True,
+        methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"]
+    )
 
     # === Register Blueprints (Web Routes) ===
     app.register_blueprint(errors.bp)
@@ -92,8 +98,8 @@ def create_app():
     app.register_blueprint(insights.bp)
     
     # Register new blueprints
-    from .web import journals, settings
-    app.register_blueprint(journals.bp)
+    from .web import journal_entries, settings
+    app.register_blueprint(journal_entries.bp)
     app.register_blueprint(settings.bp)
     
     # Import and register export blueprint

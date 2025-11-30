@@ -67,79 +67,28 @@ class WarmthAPI {
     });
   }
 
-  async getChatHistory(limit = 50) {
-    return this.request(`/chat/history?limit=${limit}`);
+  // Journal & Insights endpoints
+  async getMoodLogs() {
+    return this.request('/mood_logs');
   }
 
-  // Memory endpoints
-  async getMemories() {
-    return this.request('/memory/');
-  }
-
-  async forgetMemory(memoryId) {
-    return this.request('/forget', {
-      method: 'POST',
-      body: JSON.stringify({ memory_id: memoryId }),
-    });
-  }
-
-  async exportAllData() {
-    return this.request('/export-all');
-  }
-
-  async eraseAllData() {
-    return this.request('/erase-all', {
-      method: 'POST',
-    });
-  }
-
-  async vacuumDatabase() {
-    return this.request('/maintenance/vacuum', {
-      method: 'POST',
-    });
-  }
-
-  async expireMemories() {
-    return this.request('/maintenance/expire', {
-      method: 'POST',
-    });
-  }
-  // Emotion Analysis & Insights endpoints
-  async checkRecapStatus() {
-    return this.request('/insights/recap/check');
-  }
-
-  async getLatestRecap() {
+  async getRecap() {
     try {
-      return await this.request('/insights/recap/latest');
+      return await this.request('/recap');
     } catch (e) {
       if (e.message && (e.message.includes('404') || e.message.includes('NOT FOUND'))) {
-        console.warn('Recap endpoint not found – returning empty payload');
         return { recap: null };
       }
       throw e;
     }
   }
 
-  async getMemoryGraph() {
-    return this.request('/insights/memory-graph');
+  async getJournalEntries() {
+    return this.request('/journal_entries');
   }
 
-  async generateRecap() {
-    return this.request('/insights/recap/generate', {
-      method: 'POST',
-    });
-  }
-
-  // Mood endpoints
-  async logMood(mood, note = '') {
-    return this.request('/mood', {
-      method: 'POST',
-      body: JSON.stringify({
-        score: mood, // Backend expects 'score'
-        password,
-      }),
-    });
+  async getMemories() {
+    return this.request('/memories');
   }
 
   // Preferences endpoints

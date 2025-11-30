@@ -40,7 +40,7 @@ DEFAULT_USER_ID = os.getenv('DEFAULT_USER_ID', 'b62ed4f8-6b5c-4095-9096-dfef6c96
 # IMPORTANT: FLASK_SECRET_KEY must be set via environment variable for security
 ENABLE_AUTH = os.getenv('ENABLE_AUTH', 'false').lower() == 'true'
 FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
-ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '*')
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:8081,http://localhost:3000,http://127.0.0.1:8081,https://warmth-ai.onrender.com')
 
 # Performance Configuration
 CACHE_MAX_AGE = int(os.getenv('CACHE_MAX_AGE', '31536000'))

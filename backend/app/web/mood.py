@@ -2,7 +2,7 @@
 import logging
 import json
 from flask import Blueprint, jsonify, request, Response, current_app
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from ..security import csrf_protect, require_auth, encrypt_data, decrypt_data
 from .validation import validate_json_request
@@ -52,121 +52,31 @@ def log_mood():
         logger.error(f"POST /mood - 500 Internal Server Error: {e}", exc_info=True)
         return jsonify({"error": "Failed to log mood"}), 500
 
-@bp.route('/mood/history', methods=['GET'])
+@bp.route('/mood_logs', methods=['GET'])
 @require_auth
-def get_mood_history_endpoint():
-    """ GET /mood/history - Retrieves mood history. """
-    try:
-        # For now, return empty history
-        # TODO: Implement actual mood retrieval from Supabase
-        history = []
-        return jsonify({
-            "entries": history,
-            "advice": "Keep tracking your mood to see patterns and get personalized advice."
-        }), 200
-
-    except Exception as e:
-        logger.error(f"GET /mood/history - 500 Internal Server Error: {e}", exc_info=True)
-        return jsonify({"error": "Failed to retrieve mood history"}), 500
-
-# === Updated: Use ChatService for mood history ===
-@bp.route('/mood-history', methods=['GET'])
-@require_auth
-def get_mood_history():
-    """ GET /mood-history - Retrieves mood history and advice. """
+def get_mood_logs():
+    """ GET /mood_logs - Retrieves mood history for the graph. """
     try:
         # Use global Supabase client
         supabase = current_app.supabase
         
         # Get current user ID
         user_id = request.current_user['id']
-        logger.info(f"Fetching mood history for user_id: {user_id}")
+        logger.info(f"Fetching mood logs for user_id: {user_id}")
 
-        # Get mood history from last 7 days
-        cutoff_date = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        # Get mood history from last 30 days (extended for graph)
+        cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
         result = supabase.table('mood_logs').select('*').eq('user_id', user_id).gte('timestamp', cutoff_date).order('timestamp', desc=True).execute()
         history = result.data if result.data else []
         
         logger.info(f"Found {len(history)} mood entries for user {user_id}")
 
-        # Simple advice based on mood history
-        advice = "Keep tracking your mood to see patterns and get personalized advice."
-        if history:
-            # Calculate average mood score
-            scores = [entry.get('score', 0) for entry in history if entry.get('score') is not None]
-            if scores:
-                avg_score = sum(scores) / len(scores)
-                if avg_score > 0.3:
-                    advice = "You've been doing well! Keep up the positive mindset."
-                elif avg_score < -0.3:
-                    advice = "You've been going through a tough time. Be kind to yourself and reach out for support."
-                else:
-                    advice = "Your mood has been balanced. Continue expressing yourself freely."
-
         return jsonify({
-            "history": history or [],
-            "advice": advice
+            "mood_logs": history
         }), 200
     except Exception as e:
-        logger.error(f"GET /mood-history - 500 Internal Server Error: {e}", exc_info=True)
-        # Fallback to empty response
-        return jsonify({
-            "history": [],
-            "advice": "Keep tracking your mood to see patterns and get personalized advice."
-        }), 200
-
-@bp.route('/api/journal', methods=['GET'])
-@require_auth
-def get_journal():
-    """ GET /api/journal - Retrieves combined memories and mood logs sorted by timestamp. """
-    try:
-        user_id = request.current_user['id']
-        supabase = current_app.supabase
-        
-        # Get memories
-        memories_result = supabase.table('memories').select('*').eq('user_id', user_id).execute()
-        memories = memories_result.data if memories_result.data else []
-        
-        # Get mood logs
-        mood_result = supabase.table('mood_logs').select('*').eq('user_id', user_id).execute()
-        mood_history = mood_result.data if mood_result.data else []
-
-        # Create combined journal entries
-        journal_entries = []
-
-        # Process memories
-        for memory in memories:
-            journal_entries.append({
-                'id': memory['id'],
-                'type': 'memory',
-                'key': memory['key'],
-                'value': memory['value'],
-                'timestamp': memory['timestamp'],
-                'importance': memory.get('importance', 0.5)
-            })
-
-        # Process mood logs
-        for mood in mood_history:
-            journal_entries.append({
-                'id': f"mood_{mood['id']}",
-                'type': 'mood',
-                'score': mood['score'],
-                'label': mood.get('label', 'Neutral'),
-                'topic': mood.get('topic'),
-                'timestamp': mood['timestamp'],
-                'count': 1
-            })
-
-        # Sort all entries by timestamp (descending - newest first)
-        journal_entries.sort(key=lambda x: x['timestamp'], reverse=True)
-
-        return jsonify({
-            'entries': journal_entries
-        }), 200
-
-    except Exception as e:
-        logger.error(f"GET /api/journal - 500 Internal Server Error: {e}", exc_info=True)
-        raise
+        logger.error(f"GET /mood_logs - 500 Internal Server Error: {e}", exc_info=True)
+        return jsonify({"mood_logs": []}), 200
 
 @bp.route('/export/mood-history', methods=['GET'])
 @require_auth
