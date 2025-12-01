@@ -587,21 +587,34 @@ Be conservative - only save clear, specific, and important facts."""
             # Add small random delay to desynchronize parallel requests
             time.sleep(random.uniform(0.1, 0.5))
 
-            # Check daily limit (max 1 automated journal per day)
+            # Check daily limit (max 3 automated journals per day)
             today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
             try:
-                count_result = self.supabase.table('journals')\
-                    .select('id', count='exact')\
+                # Get count and last journal time
+                journal_stats = self.supabase.table('journals')\
+                    .select('created_at')\
                     .eq('user_id', user_id)\
                     .eq('is_automated', True)\
                     .gte('created_at', today_start)\
+                    .order('created_at', desc=True)\
                     .execute()
                 
-                if count_result.count >= 1:
-                    logger.info("Daily automated journal limit reached (1/1). Skipping generation.")
+                count = len(journal_stats.data) if journal_stats.data else 0
+                
+                if count >= 3:
+                    logger.info("Daily automated journal limit reached (3/3). Skipping generation.")
                     return
+                    
+                # Check 4-hour spacing
+                if count > 0:
+                    last_journal_time = datetime.fromisoformat(journal_stats.data[0]['created_at'].replace('Z', '+00:00'))
+                    time_since_last = datetime.utcnow() - last_journal_time.replace(tzinfo=None)
+                    if time_since_last < timedelta(hours=4):
+                        logger.info(f"Too soon for new journal (last was {time_since_last.seconds/3600:.1f}h ago). Skipping.")
+                        return
+
             except Exception as e:
-                logger.warning(f"Failed to check journal count: {e}")
+                logger.warning(f"Failed to check journal stats: {e}")
                 # Continue if check fails
             # Get recent chat history (last 20 messages)
             recent_history = self.history[-20:] if len(self.history) >= 4 else []
@@ -901,8 +914,8 @@ User message: """ + user_input
                     # Calculate time difference
                     time_diff = datetime.utcnow() - last_time.replace(tzinfo=None)
                     
-                    # If less than 3 hours, check for significant change
-                    if time_diff < timedelta(hours=3):
+                    # If less than 1 hour, check for significant change
+                    if time_diff < timedelta(hours=1):
                         should_log = False # Default to false if within window
             except Exception as e:
                 logger.warning(f"Failed to check last mood log: {e}")
@@ -918,17 +931,23 @@ User message: """ + user_input
             
             # Extract data
             mood_score = analysis.get('sentiment_score', 0.0)
+            intensity = analysis.get('intensity', 0.0)
             topics = analysis.get('topics', [])
             detected_topic = topics[0] if topics else "General"
             
-            # If we were going to skip, check if mood change is significant
+            # If we were going to skip, check if mood change is significant OR intensity is high
             if not should_log:
                 score_change = abs(mood_score - last_score)
-                if score_change > 0.3:
+                
+                # Log if:
+                # 1. Significant score change (> 0.2)
+                # 2. High intensity (> 0.6)
+                # 3. Extreme mood score (> 0.6 or < -0.6)
+                if score_change > 0.2 or intensity > 0.6 or abs(mood_score) > 0.6:
                     should_log = True
-                    logger.info(f"Significant mood change detected ({score_change:.2f}), forcing log.")
+                    logger.info(f"Forcing mood log: change={score_change:.2f}, intensity={intensity:.2f}, score={mood_score:.2f}")
                 else:
-                    logger.info(f"Skipping mood log: within 3h window and change {score_change:.2f} < 0.3")
+                    logger.info(f"Skipping mood log: within 1h window and no significant trigger")
                     return {"score": mood_score, "label": "Skipped", "topic": detected_topic}
 
             # Determine label based on score
