@@ -9,8 +9,8 @@ ZAI_TEMPERATURE = 0.3  # Low temperature for concise, predictable responses
 ZAI_TIMEOUT = 30  # Request timeout in seconds
 
 # Token Limits (Cost Control)
-MAX_INPUT_TOKENS = 400  # Trim inputs longer than this
-MAX_OUTPUT_TOKENS = 150  # Limit response length
+MAX_INPUT_TOKENS = 1000  # Trim inputs longer than this
+MAX_OUTPUT_TOKENS = 500  # Limit response length
 DAILY_TOKEN_LIMIT = 50000  # Daily usage cap to prevent runaway costs
 
 # Database Configuration - Supabase
